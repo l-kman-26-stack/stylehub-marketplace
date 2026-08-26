@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.firstOrNull
 
 class StyleHubRepository(private val dao: StyleHubDao) {
 
+    val authManager = com.example.security.AuthManager(dao)
+
     // --- Users & Roles ---
     val allUsers: Flow<List<UserEntity>> = dao.getAllUsers()
 
@@ -219,4 +221,15 @@ class StyleHubRepository(private val dao: StyleHubDao) {
     fun getNotifications(userId: Long): Flow<List<NotificationEntity>> = dao.getNotificationsForUser(userId)
 
     suspend fun markNotificationRead(id: Long) = dao.markNotificationAsRead(id)
+ 
+     // --- Enterprise Security & Session Management ---
+     fun getActiveSessions(userId: Long): Flow<List<SessionEntity>> = authManager.getActiveSessions(userId)
+
+     suspend fun revokeSession(sessionId: String, userId: Long) = authManager.revokeSession(sessionId, userId)
+
+     suspend fun revokeAllOtherSessions(userId: Long, currentSessionId: String) = authManager.revokeAllOtherSessions(userId, currentSessionId)
+
+     fun getAuditLogs(userId: Long): Flow<List<SecurityAuditLogEntity>> = authManager.getAuditLogs(userId)
+
+     fun getAllAuditLogs(): Flow<List<SecurityAuditLogEntity>> = authManager.getAllAuditLogs()
 }

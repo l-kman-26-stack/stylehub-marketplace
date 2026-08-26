@@ -31,7 +31,10 @@ fun ProfileScreen(
     onRoleChange: (UserRole) -> Unit,
     totalBookings: Int,
     totalSaved: Int,
-    onOpenNotifications: () -> Unit
+    onOpenNotifications: () -> Unit,
+    onOpenSecurity: () -> Unit = {},
+    onOpenAuth: () -> Unit = {},
+    onSignOut: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -247,6 +250,26 @@ fun ProfileScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
+                // Enterprise Security Center
+                ListItem(
+                    headlineContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Account Security & Identity", fontWeight = FontWeight.SemiBold)
+                            if (currentUser?.isMfaEnabled == true || currentUser?.forceMfa == true) {
+                                Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFF22C55E).copy(alpha = 0.15f)) {
+                                    Text("2FA ACTIVE", fontSize = 9.sp, color = Color(0xFF22C55E), fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                }
+                            }
+                        }
+                    },
+                    supportingContent = { Text("2FA TOTP, Sessions, Password & Audit Logs") },
+                    leadingContent = { Icon(Icons.Outlined.Shield, contentDescription = null, tint = GoldPrimary) },
+                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                    modifier = Modifier
+                        .clickable { onOpenSecurity() }
+                        .testTag("profile_account_security_item")
+                )
+                HorizontalDivider()
                 ListItem(
                     headlineContent = { Text("Notifications Center") },
                     leadingContent = { Icon(Icons.Outlined.Notifications, contentDescription = null, tint = GoldPrimary) },
@@ -265,6 +288,45 @@ fun ProfileScreen(
                     supportingContent = { Text("Version 1.0 • South Africa Grooming Marketplace") },
                     leadingContent = { Icon(Icons.Outlined.Info, contentDescription = null, tint = GoldPrimary) }
                 )
+            }
+        }
+
+        // Authentication Actions (Sign In / Register / Log Out)
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onOpenAuth,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("profile_open_auth_button"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.AccountCircle, contentDescription = null, tint = GoldPrimary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Sign In with another Account / Register", fontWeight = FontWeight.Bold)
+                }
+
+                TextButton(
+                    onClick = onSignOut,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("profile_sign_out_button")
+                ) {
+                    Icon(Icons.Default.Logout, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Sign Out of StyleHub", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }

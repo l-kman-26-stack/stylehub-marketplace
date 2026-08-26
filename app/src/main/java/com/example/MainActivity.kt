@@ -69,6 +69,11 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
     val customerAppointments by viewModel.customerAppointments.collectAsStateWithLifecycle()
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
 
+    // Gemini Chatbot State
+    val chatMessages by viewModel.chatMessages.collectAsStateWithLifecycle()
+    val isChatLoading by viewModel.isChatLoading.collectAsStateWithLifecycle()
+    val chatInput by viewModel.chatInput.collectAsStateWithLifecycle()
+
     // Owner State
     val activeOwnerBusiness by viewModel.activeOwnerBusiness.collectAsStateWithLifecycle()
     val ownerAppointments by viewModel.ownerAppointments.collectAsStateWithLifecycle()
@@ -81,6 +86,26 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
     val allAppointmentsAdmin by viewModel.allAppointmentsAdmin.collectAsStateWithLifecycle()
     val allReviewsAdmin by viewModel.allReviewsAdmin.collectAsStateWithLifecycle()
+
+    // Auth & Enterprise Security States
+    val isAuthModalOpen by viewModel.isAuthModalOpen.collectAsStateWithLifecycle()
+    val authModalTab by viewModel.authModalTab.collectAsStateWithLifecycle()
+    val isAuthLoading by viewModel.isAuthLoading.collectAsStateWithLifecycle()
+    val authErrorMessage by viewModel.authErrorMessage.collectAsStateWithLifecycle()
+    val lockoutMinutes by viewModel.lockoutMinutes.collectAsStateWithLifecycle()
+
+    val isMfaChallengeOpen by viewModel.isMfaChallengeOpen.collectAsStateWithLifecycle()
+    val mfaChallengeEmail by viewModel.mfaChallengeEmail.collectAsStateWithLifecycle()
+    val mfaChallengePhone by viewModel.mfaChallengePhone.collectAsStateWithLifecycle()
+
+    val isSecurityDashboardOpen by viewModel.isSecurityDashboardOpen.collectAsStateWithLifecycle()
+    val activeSessions by viewModel.activeSessions.collectAsStateWithLifecycle()
+    val auditLogs by viewModel.auditLogs.collectAsStateWithLifecycle()
+
+    val mfaSetupStep by viewModel.mfaSetupStep.collectAsStateWithLifecycle()
+    val mfaSetupSecret by viewModel.mfaSetupSecret.collectAsStateWithLifecycle()
+    val mfaSetupUri by viewModel.mfaSetupUri.collectAsStateWithLifecycle()
+    val generatedRecoveryCodes by viewModel.generatedRecoveryCodes.collectAsStateWithLifecycle()
 
     // Dialog & Sheet States
     val bookingDialogOpen by viewModel.bookingDialogOpen.collectAsStateWithLifecycle()
@@ -100,6 +125,8 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
 
     var showNotificationSheet by remember { mutableStateOf(false) }
 
+    var showPhoneVerifyDialog by remember { mutableStateOf(false) }
+
     // Handle Snackbar messages
     LaunchedEffect(snackbarMessage) {
         snackbarMessage?.let { msg ->
@@ -108,16 +135,20 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
         }
     }
 
-    // Intercept Back Press when in detail view or owner onboarding
-    BackHandler(enabled = selectedBusinessId != null) {
-        viewModel.closeBusinessView()
+    // Intercept Back Press when in security dashboard, detail view or owner onboarding
+    BackHandler(enabled = isSecurityDashboardOpen || selectedBusinessId != null) {
+        if (isSecurityDashboardOpen) {
+            viewModel.closeSecurityDashboard()
+        } else if (selectedBusinessId != null) {
+            viewModel.closeBusinessView()
+        }
     }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            if (selectedBusinessId == null && !isOnboardingOpen) {
+            if (!isSecurityDashboardOpen && selectedBusinessId == null && !isOnboardingOpen) {
                 StyleHubTopBar(
                     currentRole = activeRole,
                     onRoleChange = { role -> viewModel.switchRole(role) },
@@ -137,7 +168,7 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
             }
         },
         bottomBar = {
-            if (activeRole == UserRole.CUSTOMER && selectedBusinessId == null && !isOnboardingOpen) {
+            if (!isSecurityDashboardOpen && activeRole == UserRole.CUSTOMER && selectedBusinessId == null && !isOnboardingOpen) {
                 StyleHubBottomNav(
                     currentTab = customerTab,
                     onTabSelected = { tab -> viewModel.selectTab(tab) },
@@ -150,11 +181,35 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(
-                    if (selectedBusinessId != null || isOnboardingOpen) PaddingValues(0.dp) else innerPadding
+                    if (isSecurityDashboardOpen || selectedBusinessId != null || isOnboardingOpen) PaddingValues(0.dp) else innerPadding
                 )
         ) {
-            // Detailed Business View if opened
-            if (selectedBusinessId != null && selectedBusiness != null) {
+            // Full Screen Security & Identity Dashboard if opened
+            if (isSecurityDashboardOpen) {
+                AccountSecurityScreen(
+                    currentUser = currentUser,
+                    activeSessions = activeSessions,
+                    auditLogs = auditLogs,
+                    mfaSetupStep = mfaSetupStep,
+                    mfaSetupSecret = mfaSetupSecret,
+                    mfaSetupUri = mfaSetupUri,
+                    generatedRecoveryCodes = generatedRecoveryCodes,
+                    onBack = { viewModel.closeSecurityDashboard() },
+                    onStartMfaSetup = { viewModel.startMfaSetup() },
+                    onProceedToMfaVerify = { viewModel.proceedToMfaVerify() },
+                    onConfirmMfaSetup = { code -> viewModel.confirmMfaSetup(code) },
+                    onDisableMfa = { code -> viewModel.disableMfa(code) },
+                    onRegenerateRecoveryCodes = { code -> viewModel.regenerateRecoveryCodes(code) },
+                    onCloseMfaWizard = { viewModel.closeMfaWizard() },
+                    onChangePassword = { cur, new -> viewModel.changePassword(cur, new) },
+                    onRevokeSession = { sId -> viewModel.revokeSession(sId) },
+                    onRevokeAllOtherSessions = { viewModel.revokeAllOtherSessions() },
+                    onVerifyEmail = { viewModel.verifyEmail() },
+                    onOpenPhoneVerify = { showPhoneVerifyDialog = true },
+                    onLinkOAuth = { prov -> viewModel.linkOAuth(prov) }
+                )
+            } else if (selectedBusinessId != null && selectedBusiness != null) {
+                // Detailed Business View if opened
                 BusinessProfileScreen(
                     business = selectedBusiness!!,
                     services = selectedBusinessServices,
@@ -203,6 +258,21 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
                                     }
                                 )
                             }
+                            CustomerTab.AI_STYLIST -> {
+                                AiStylistChatScreen(
+                                    viewModel = viewModel,
+                                    messages = chatMessages,
+                                    isLoading = isChatLoading,
+                                    inputText = chatInput,
+                                    onInputChange = { text -> viewModel.setChatInput(text) },
+                                    onSendMessage = { prompt -> viewModel.sendChatMessage(prompt) },
+                                    onClearChat = { viewModel.clearChat() },
+                                    onNavigateExplore = { query ->
+                                        viewModel.updateSearchQuery(query)
+                                        viewModel.selectTab(CustomerTab.EXPLORE)
+                                    }
+                                )
+                            }
                             CustomerTab.SAVED -> {
                                 SavedScreen(
                                     savedBusinesses = savedBusinesses,
@@ -230,7 +300,10 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
                                     onRoleChange = { role -> viewModel.switchRole(role) },
                                     totalBookings = customerAppointments.size,
                                     totalSaved = savedBusinesses.size,
-                                    onOpenNotifications = { showNotificationSheet = true }
+                                    onOpenNotifications = { showNotificationSheet = true },
+                                    onOpenSecurity = { viewModel.openSecurityDashboard() },
+                                    onOpenAuth = { viewModel.openAuthModal(0) },
+                                    onSignOut = { viewModel.signOut() }
                                 )
                             }
                         }
@@ -258,6 +331,45 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
             }
         }
     }
+
+    // Enterprise Auth Modal (Sign In, Sign Up, Recovery, Social OAuth)
+    AuthModal(
+        isOpen = isAuthModalOpen,
+        initialTab = authModalTab,
+        isLoading = isAuthLoading,
+        errorMessage = authErrorMessage,
+        lockoutMinutes = lockoutMinutes,
+        onClose = { viewModel.closeAuthModal() },
+        onSignIn = { email, pass -> viewModel.signInWithEmailPassword(email, pass) },
+        onSignUp = { name, email, phone, pass, role, city, prov ->
+            viewModel.signUp(name, email, phone, pass, role, city, prov)
+        },
+        onOAuthSignIn = { provider -> viewModel.signInWithOAuth(provider) },
+        onRequestPasswordReset = { email -> viewModel.requestPasswordReset(email) }
+    )
+
+    // 2FA TOTP Challenge Dialog
+    MfaChallengeDialog(
+        isOpen = isMfaChallengeOpen,
+        userEmail = mfaChallengeEmail,
+        maskedPhone = mfaChallengePhone,
+        isLoading = isAuthLoading,
+        errorMessage = authErrorMessage,
+        onVerifyCode = { code -> viewModel.verifyMfaChallenge(code) },
+        onCancel = { viewModel.cancelMfaChallenge() }
+    )
+
+    // Phone Verification Dialog
+    PhoneVerificationDialog(
+        isOpen = showPhoneVerifyDialog,
+        initialPhone = currentUser?.phone ?: "+27 ",
+        onDismiss = { showPhoneVerifyDialog = false },
+        onSendOtp = { phone -> viewModel.sendPhoneOtp(phone) },
+        onConfirmOtp = { phone, code ->
+            viewModel.confirmPhoneOtp(phone, code)
+            showPhoneVerifyDialog = false
+        }
+    )
 
     // Modal Booking Bottom Sheet
     if (bookingDialogOpen && selectedBusiness != null) {

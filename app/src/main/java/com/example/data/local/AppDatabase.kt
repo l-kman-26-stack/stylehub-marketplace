@@ -22,9 +22,11 @@ import kotlinx.coroutines.launch
         AppointmentEntity::class,
         ReviewEntity::class,
         SavedBusinessEntity::class,
-        NotificationEntity::class
+        NotificationEntity::class,
+        SessionEntity::class,
+        SecurityAuditLogEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -70,7 +72,17 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         suspend fun populateInitialData(dao: StyleHubDao) {
-            // 1. Pre-populate Demo Users for All 3 Roles
+            val customerSalt = com.example.security.CryptoUtils.generateSalt()
+            val customerHash = com.example.security.CryptoUtils.hashPassword("StyleHub2026!", customerSalt)
+
+            val ownerSalt = com.example.security.CryptoUtils.generateSalt()
+            val ownerHash = com.example.security.CryptoUtils.hashPassword("BarberPro2026!", ownerSalt)
+
+            val adminSalt = com.example.security.CryptoUtils.generateSalt()
+            val adminHash = com.example.security.CryptoUtils.hashPassword("AdminSecure2026!", adminSalt)
+            val adminMfaSecret = "JBSWY3DPEHPK3PXP" // Standard Base32 TOTP secret
+
+            // 1. Pre-populate Demo Users for All 3 Roles with Security Properties
             val customerId = dao.insertUser(
                 UserEntity(
                     id = 1,
@@ -79,7 +91,14 @@ abstract class AppDatabase : RoomDatabase() {
                     phone = "+27 82 555 1234",
                     role = UserRole.CUSTOMER.name,
                     city = "Johannesburg",
-                    province = "Gauteng"
+                    province = "Gauteng",
+                    passwordHash = customerHash,
+                    salt = customerSalt,
+                    isEmailVerified = true,
+                    isPhoneVerified = true,
+                    isMfaEnabled = false,
+                    lastLoginAt = System.currentTimeMillis() - 3600000L,
+                    lastPasswordChangeAt = System.currentTimeMillis() - (15L * 24 * 60 * 60 * 1000L)
                 )
             )
 
@@ -91,7 +110,15 @@ abstract class AppDatabase : RoomDatabase() {
                     phone = "+27 71 888 9900",
                     role = UserRole.BUSINESS_OWNER.name,
                     city = "Sandton",
-                    province = "Gauteng"
+                    province = "Gauteng",
+                    passwordHash = ownerHash,
+                    salt = ownerSalt,
+                    isEmailVerified = true,
+                    isPhoneVerified = true,
+                    isMfaEnabled = false,
+                    forceMfa = false,
+                    lastLoginAt = System.currentTimeMillis() - 7200000L,
+                    lastPasswordChangeAt = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000L)
                 )
             )
 
@@ -103,7 +130,106 @@ abstract class AppDatabase : RoomDatabase() {
                     phone = "+27 11 400 0000",
                     role = UserRole.ADMIN.name,
                     city = "Johannesburg",
-                    province = "Gauteng"
+                    province = "Gauteng",
+                    passwordHash = adminHash,
+                    salt = adminSalt,
+                    isEmailVerified = true,
+                    isPhoneVerified = true,
+                    isMfaEnabled = true,
+                    forceMfa = true, // Mandatory MFA for Administrators
+                    mfaSecret = adminMfaSecret,
+                    mfaRecoveryCodes = "A1B2-C3D4,E5F6-G7H8,J9K0-L1M2,N3P4-Q5R6,S7T8-U9V0,W1X2-Y3Z4,2A3B-4C5D,6E7F-8G9H",
+                    lastLoginAt = System.currentTimeMillis() - 1800000L,
+                    lastPasswordChangeAt = System.currentTimeMillis() - (5L * 24 * 60 * 60 * 1000L)
+                )
+            )
+
+            // Seed Initial Active Sessions
+            dao.insertSession(
+                SessionEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    userId = 1,
+                    deviceName = "Samsung Galaxy S24 Ultra",
+                    deviceType = "MOBILE",
+                    osVersion = "Android 14 (OneUI 6.1)",
+                    ipAddress = "102.165.34.12",
+                    location = "Rosebank, Johannesburg",
+                    isCurrent = true
+                )
+            )
+            dao.insertSession(
+                SessionEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    userId = 1,
+                    deviceName = "Chrome on macOS",
+                    deviceType = "DESKTOP",
+                    osVersion = "macOS Sonoma 14.5",
+                    ipAddress = "197.89.21.44",
+                    location = "Cape Town CBD",
+                    lastActiveAt = System.currentTimeMillis() - 86400000L,
+                    isCurrent = false
+                )
+            )
+            dao.insertSession(
+                SessionEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    userId = 2,
+                    deviceName = "Google Pixel 8 Pro",
+                    deviceType = "MOBILE",
+                    osVersion = "Android 14",
+                    ipAddress = "105.22.45.10",
+                    location = "Sandton, Johannesburg",
+                    isCurrent = true
+                )
+            )
+            dao.insertSession(
+                SessionEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    userId = 3,
+                    deviceName = "Workstation Linux Chrome",
+                    deviceType = "DESKTOP",
+                    osVersion = "Ubuntu 24.04 LTS",
+                    ipAddress = "102.182.100.5",
+                    location = "Johannesburg Central",
+                    isCurrent = true
+                )
+            )
+
+            // Seed Initial Security Audit Logs
+            dao.insertAuditLog(
+                SecurityAuditLogEntity(
+                    userId = 1,
+                    userEmail = "leletu@stylehub.co.za",
+                    eventType = "SIGN_IN_SUCCESS",
+                    details = "Authenticated via Email & Password with secure session token.",
+                    ipAddress = "102.165.34.12",
+                    device = "Samsung Galaxy S24 Ultra",
+                    severity = "INFO",
+                    timestamp = System.currentTimeMillis() - 3600000L
+                )
+            )
+            dao.insertAuditLog(
+                SecurityAuditLogEntity(
+                    userId = 3,
+                    userEmail = "admin@stylehub.co.za",
+                    eventType = "MFA_ENABLED",
+                    details = "Mandatory RFC 6238 TOTP Multi-Factor Authentication enabled for Administrator account.",
+                    ipAddress = "102.182.100.5",
+                    device = "Workstation Linux Chrome",
+                    severity = "INFO",
+                    timestamp = System.currentTimeMillis() - (5L * 24 * 60 * 60 * 1000L)
+                )
+            )
+            dao.insertAuditLog(
+                SecurityAuditLogEntity(
+                    userId = 3,
+                    userEmail = "admin@stylehub.co.za",
+                    eventType = "SIGN_IN_SUCCESS",
+                    details = "Admin authentication verified with 2FA TOTP hardware-backed token challenge.",
+                    ipAddress = "102.182.100.5",
+                    device = "Workstation Linux Chrome",
+                    severity = "INFO",
+                    timestamp = System.currentTimeMillis() - 1800000L
                 )
             )
 

@@ -80,6 +80,30 @@ fun StyleHubBottomNav(
         )
 
         NavigationBarItem(
+            selected = currentTab == CustomerTab.AI_STYLIST,
+            onClick = { onTabSelected(CustomerTab.AI_STYLIST) },
+            icon = {
+                Icon(
+                    imageVector = if (currentTab == CustomerTab.AI_STYLIST) Icons.Filled.AutoAwesome else Icons.Outlined.AutoAwesome,
+                    contentDescription = "AI Stylist",
+                    modifier = Modifier.size(24.dp)
+                )
+            },
+            label = {
+                Text(
+                    "AI Stylist",
+                    fontSize = 11.sp,
+                    fontWeight = if (currentTab == CustomerTab.AI_STYLIST) FontWeight.Bold else FontWeight.Normal
+                )
+            },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = GoldPrimary,
+                indicatorColor = MaterialTheme.colorScheme.primaryContainer
+            ),
+            modifier = Modifier.testTag("tab_ai_stylist")
+        )
+
+        NavigationBarItem(
             selected = currentTab == CustomerTab.SAVED,
             onClick = { onTabSelected(CustomerTab.SAVED) },
             icon = {

@@ -39,7 +39,8 @@ fun AdminDashboardScreen(
         "Approvals (${pendingList.size})",
         "Businesses (${allBusinesses.size})",
         "Users (${allUsers.size})",
-        "Reviews (${allReviews.size})"
+        "Reviews (${allReviews.size})",
+        "Security & Logs"
     )
 
     LazyColumn(
@@ -385,9 +386,19 @@ fun AdminDashboardScreen(
                                 }
 
                                 Column {
-                                    Text(text = user.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(text = user.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        if (user.isMfaEnabled || user.forceMfa) {
+                                            Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFF22C55E).copy(alpha = 0.15f)) {
+                                                Text("2FA", fontSize = 9.sp, color = Color(0xFF22C55E), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                                            }
+                                        }
+                                    }
                                     Text(text = "${user.email} • ${user.phone}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text(text = "Role: ${user.role}", fontSize = 11.sp, color = GoldPrimary, fontWeight = FontWeight.SemiBold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Text(text = "Role: ${user.role}", fontSize = 11.sp, color = GoldPrimary, fontWeight = FontWeight.SemiBold)
+                                        Text(text = "• Provider: ${user.authProvider}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                 }
                             }
 
@@ -442,6 +453,67 @@ fun AdminDashboardScreen(
                             }
 
                             Text(text = "\"${rev.comment}\"", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            }
+
+            4 -> {
+                // Security & Audit Logs Tab
+                item {
+                    val auditLogs by viewModel.allAuditLogsAdmin.collectAsState()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.openSecurityDashboard() },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = CharcoalDark),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Shield, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Open Admin Security & Identity Center", fontWeight = FontWeight.Bold)
+                        }
+
+                        Text(
+                            text = "Platform Audit Trail (${auditLogs.size} events recorded)",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+
+                        auditLogs.forEach { log ->
+                            val sevColor = when (log.severity) {
+                                "CRITICAL" -> Color(0xFFEF4444)
+                                "WARNING" -> Color(0xFFF97316)
+                                else -> Color(0xFF22C55E)
+                            }
+                            val dateStr = java.text.SimpleDateFormat("dd MMM, HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(log.timestamp))
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 2.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(sevColor))
+                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text(log.eventType.replace("_", " "), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text(dateStr, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        Text(log.details, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                                        Text("User: ${log.userEmail ?: "System"} • ${log.device} • ${log.ipAddress}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
                         }
                     }
                 }

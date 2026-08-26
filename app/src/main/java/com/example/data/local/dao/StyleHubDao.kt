@@ -17,6 +17,12 @@ interface StyleHubDao {
     @Query("SELECT * FROM users WHERE role = :role")
     fun getUsersByRole(role: String): Flow<List<UserEntity>>
 
+    @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
+    suspend fun getUserByEmail(email: String): UserEntity?
+
+    @Query("SELECT * FROM users WHERE authProvider = :provider AND providerUid = :uid LIMIT 1")
+    suspend fun getUserByProviderUid(provider: String, uid: String): UserEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUser(user: UserEntity): Long
 
@@ -153,4 +159,36 @@ interface StyleHubDao {
 
     @Query("UPDATE notifications SET isRead = 1 WHERE id = :notificationId")
     suspend fun markNotificationAsRead(notificationId: Long)
+
+    // --- Sessions & Device Management ---
+    @Query("SELECT * FROM sessions WHERE userId = :userId AND isRevoked = 0 ORDER BY lastActiveAt DESC")
+    fun getActiveSessionsForUser(userId: Long): Flow<List<SessionEntity>>
+
+    @Query("SELECT * FROM sessions WHERE id = :sessionId LIMIT 1")
+    suspend fun getSessionById(sessionId: String): SessionEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSession(session: SessionEntity)
+
+    @Update
+    suspend fun updateSession(session: SessionEntity)
+
+    @Query("UPDATE sessions SET isRevoked = 1 WHERE id = :sessionId")
+    suspend fun revokeSession(sessionId: String)
+
+    @Query("UPDATE sessions SET isRevoked = 1 WHERE userId = :userId AND id != :currentSessionId")
+    suspend fun revokeAllSessionsExcept(userId: Long, currentSessionId: String)
+
+    @Query("UPDATE sessions SET isRevoked = 1 WHERE userId = :userId")
+    suspend fun revokeAllSessions(userId: Long)
+
+    // --- Security Audit Logs ---
+    @Query("SELECT * FROM security_audit_logs WHERE userId = :userId ORDER BY timestamp DESC LIMIT 50")
+    fun getAuditLogsForUser(userId: Long): Flow<List<SecurityAuditLogEntity>>
+
+    @Query("SELECT * FROM security_audit_logs ORDER BY timestamp DESC LIMIT 100")
+    fun getAllAuditLogs(): Flow<List<SecurityAuditLogEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAuditLog(log: SecurityAuditLogEntity): Long
 }

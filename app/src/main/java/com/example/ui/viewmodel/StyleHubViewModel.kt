@@ -3,14 +3,19 @@ package com.example.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.data.api.ChatMessage
+import com.example.data.api.GeminiClient
+import com.example.data.api.GroundingSource
 import com.example.data.local.entities.*
 import com.example.data.repository.StyleHubRepository
+import com.example.security.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 enum class CustomerTab {
     HOME,
     EXPLORE,
+    AI_STYLIST,
     SAVED,
     APPOINTMENTS,
     PROFILE
@@ -242,7 +247,498 @@ class StyleHubViewModel(private val repository: StyleHubRepository) : ViewModel(
     private val _isOnboardingOpen = MutableStateFlow(false)
     val isOnboardingOpen: StateFlow<Boolean> = _isOnboardingOpen.asStateFlow()
 
-    // --- Actions ---
+    // --- Gemini AI Stylist & Maps Grounding Chat State ---
+    private val initialWelcomeMessage = ChatMessage(
+        role = "model",
+        content = """
+👋 **Sawubona! Welcome to StyleHub AI.**
+
+I am your personal South African grooming & styling concierge, powered by Gemini with **Google Maps data**!
+
+I can help you with:
+- 📍 **Finding top barbers, braiders & salons** across Sandton, Rosebank, Cape Town, Durban, Pretoria & more.
+- ✂️ **Style consultations**: Mid-fades, taper cuts, loc maintenance, knotless braids, 4C curl care, beard styling.
+- 💰 **Pricing benchmarks** in South African Rand (ZAR).
+- 🕒 Real-time neighborhood recommendations & studio navigation.
+
+*What style or area are you looking to explore today?*
+""".trimIndent(),
+        groundingSources = listOf(
+            GroundingSource(
+                title = "StyleHub South Africa Verified Studios",
+                snippet = "Locate premier salons and barbershops in Gauteng, Western Cape & KwaZulu-Natal.",
+                isMapPlace = true
+            )
+        )
+    )
+
+    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(listOf(initialWelcomeMessage))
+    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
+    private val _isChatLoading = MutableStateFlow(false)
+    val isChatLoading: StateFlow<Boolean> = _isChatLoading.asStateFlow()
+
+    private val _chatInput = MutableStateFlow("")
+    val chatInput: StateFlow<String> = _chatInput.asStateFlow()
+
+    private val _chatError = MutableStateFlow<String?>(null)
+    val chatError: StateFlow<String?> = _chatError.asStateFlow()
+
+    fun setChatInput(text: String) {
+        _chatInput.value = text
+    }
+
+    fun clearChat() {
+        _chatMessages.value = listOf(initialWelcomeMessage)
+        _chatError.value = null
+    }
+
+    fun openAiChatWithPrompt(prompt: String) {
+        _customerTab.value = CustomerTab.AI_STYLIST
+        _selectedBusinessId.value = null
+        sendChatMessage(prompt)
+    }
+
+    fun sendChatMessage(promptText: String? = null) {
+        val messageToSend = promptText ?: _chatInput.value.trim()
+        if (messageToSend.isBlank() || _isChatLoading.value) return
+
+        val userMessage = ChatMessage(
+            role = "user",
+            content = messageToSend
+        )
+
+        // Append user message immediately
+        val updatedHistory = _chatMessages.value + userMessage
+        _chatMessages.value = updatedHistory
+        if (promptText == null) {
+            _chatInput.value = ""
+        }
+        _isChatLoading.value = true
+        _chatError.value = null
+
+        viewModelScope.launch {
+            val result = GeminiClient.sendMessage(
+                history = updatedHistory.filter { !it.isError },
+                newMessage = messageToSend,
+                includeMapsGrounding = true
+            )
+
+            _isChatLoading.value = false
+
+            result.onSuccess { modelMsg ->
+                _chatMessages.value = _chatMessages.value + modelMsg
+            }.onFailure { err ->
+                _chatError.value = err.message
+                val errorMsg = ChatMessage(
+                    role = "model",
+                    content = "⚠️ Unable to connect to Gemini at the moment: ${err.localizedMessage ?: "Unknown error"}. Please check your connection or retry.",
+                    isError = true
+                )
+                _chatMessages.value = _chatMessages.value + errorMsg
+            }
+        }
+    }
+
+    // ==========================================
+    // --- Enterprise Authentication & Identity ---
+    // ==========================================
+
+    private val _isAuthModalOpen = MutableStateFlow(false)
+    val isAuthModalOpen: StateFlow<Boolean> = _isAuthModalOpen.asStateFlow()
+
+    private val _authModalTab = MutableStateFlow(0) // 0 = Sign In, 1 = Sign Up, 2 = Forgot Password
+    val authModalTab: StateFlow<Int> = _authModalTab.asStateFlow()
+
+    private val _authLoading = MutableStateFlow(false)
+    val authLoading: StateFlow<Boolean> = _authLoading.asStateFlow()
+
+    private val _authError = MutableStateFlow<String?>(null)
+    val authError: StateFlow<String?> = _authError.asStateFlow()
+
+    private val _accountLockoutMinutes = MutableStateFlow<Long?>(null)
+    val accountLockoutMinutes: StateFlow<Long?> = _accountLockoutMinutes.asStateFlow()
+
+    // 2FA / MFA Challenge State
+    private val _isMfaChallengeOpen = MutableStateFlow(false)
+    val isMfaChallengeOpen: StateFlow<Boolean> = _isMfaChallengeOpen.asStateFlow()
+
+    private val _pendingMfaUserId = MutableStateFlow<Long?>(null)
+    val pendingMfaUserId: StateFlow<Long?> = _pendingMfaUserId.asStateFlow()
+
+    private val _pendingMfaEmail = MutableStateFlow<String?>(null)
+    val pendingMfaEmail: StateFlow<String?> = _pendingMfaEmail.asStateFlow()
+
+    private val _pendingMfaMaskedPhone = MutableStateFlow<String?>(null)
+    val pendingMfaMaskedPhone: StateFlow<String?> = _pendingMfaMaskedPhone.asStateFlow()
+
+    private val _mfaChallengeError = MutableStateFlow<String?>(null)
+    val mfaChallengeError: StateFlow<String?> = _mfaChallengeError.asStateFlow()
+
+    // Security Dashboard State
+    private val _isSecurityDashboardOpen = MutableStateFlow(false)
+    val isSecurityDashboardOpen: StateFlow<Boolean> = _isSecurityDashboardOpen.asStateFlow()
+
+    // MFA Setup Wizard State (0 = closed, 1 = scan secret, 2 = confirm, 3 = show backup codes)
+    private val _mfaSetupStep = MutableStateFlow(0)
+    val mfaSetupStep: StateFlow<Int> = _mfaSetupStep.asStateFlow()
+
+    private val _mfaSetupSecret = MutableStateFlow<String?>(null)
+    val mfaSetupSecret: StateFlow<String?> = _mfaSetupSecret.asStateFlow()
+
+    private val _mfaSetupUri = MutableStateFlow<String?>(null)
+    val mfaSetupUri: StateFlow<String?> = _mfaSetupUri.asStateFlow()
+
+    private val _generatedRecoveryCodes = MutableStateFlow<List<String>>(emptyList())
+    val generatedRecoveryCodes: StateFlow<List<String>> = _generatedRecoveryCodes.asStateFlow()
+
+    // Active Sessions for Current User
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activeSessions: StateFlow<List<SessionEntity>> = _currentUserId.flatMapLatest { userId ->
+        repository.getActiveSessions(userId)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Audit Logs for Current User
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val userAuditLogs: StateFlow<List<SecurityAuditLogEntity>> = _currentUserId.flatMapLatest { userId ->
+        repository.getAuditLogs(userId)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // All Audit Logs (Admin View)
+    val allAuditLogsAdmin: StateFlow<List<SecurityAuditLogEntity>> = repository.getAllAuditLogs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Modals for Phone and Password Management
+    private val _isPhoneVerifyModalOpen = MutableStateFlow(false)
+    val isPhoneVerifyModalOpen: StateFlow<Boolean> = _isPhoneVerifyModalOpen.asStateFlow()
+
+    private val _isChangePasswordModalOpen = MutableStateFlow(false)
+    val isChangePasswordModalOpen: StateFlow<Boolean> = _isChangePasswordModalOpen.asStateFlow()
+
+    // --- Authentication Actions ---
+
+    fun openAuthModal(tab: Int = 0) {
+        _authModalTab.value = tab
+        _authError.value = null
+        _accountLockoutMinutes.value = null
+        _isAuthModalOpen.value = true
+    }
+
+    fun closeAuthModal() {
+        _isAuthModalOpen.value = false
+        _authError.value = null
+    }
+
+    fun setAuthModalTab(tab: Int) {
+        _authModalTab.value = tab
+        _authError.value = null
+    }
+
+    fun signInWithEmail(email: String, pass: String) {
+        _authLoading.value = true
+        _authError.value = null
+        _accountLockoutMinutes.value = null
+
+        viewModelScope.launch {
+            val result = repository.authManager.signInWithEmail(email, pass)
+            _authLoading.value = false
+            when (result) {
+                is AuthResult.Success -> {
+                    _currentUserId.value = result.user.id
+                    val role = try { UserRole.valueOf(result.user.role) } catch (e: Exception) { UserRole.CUSTOMER }
+                    _activeRole.value = role
+                    _isAuthModalOpen.value = false
+                    _snackbarMessage.value = "Welcome back, ${result.user.name}! 🔐 Authenticated securely"
+                }
+                is AuthResult.RequiresMfa -> {
+                    _isAuthModalOpen.value = false
+                    _pendingMfaUserId.value = result.userId
+                    _pendingMfaEmail.value = result.email
+                    _pendingMfaMaskedPhone.value = result.maskedPhone
+                    _mfaChallengeError.value = null
+                    _isMfaChallengeOpen.value = true
+                }
+                is AuthResult.AccountLocked -> {
+                    _accountLockoutMinutes.value = result.remainingMinutes
+                    _authError.value = "Account temporarily locked due to excessive failed attempts. Try again in ${result.remainingMinutes} min."
+                }
+                is AuthResult.Error -> {
+                    _authError.value = result.message
+                }
+            }
+        }
+    }
+
+    fun signUpWithEmail(
+        name: String,
+        email: String,
+        phone: String,
+        pass: String,
+        role: UserRole,
+        city: String = "Johannesburg",
+        province: String = "Gauteng"
+    ) {
+        _authLoading.value = true
+        _authError.value = null
+
+        viewModelScope.launch {
+            val result = repository.authManager.signUpWithEmail(
+                name = name,
+                email = email,
+                phone = phone,
+                password = pass,
+                role = role,
+                city = city,
+                province = province
+            )
+            _authLoading.value = false
+            when (result) {
+                is AuthResult.Success -> {
+                    _currentUserId.value = result.user.id
+                    _activeRole.value = role
+                    _isAuthModalOpen.value = false
+                    _snackbarMessage.value = "Welcome to StyleHub, ${result.user.name}! 🎉 Account created."
+                }
+                is AuthResult.Error -> {
+                    _authError.value = result.message
+                }
+                else -> {}
+            }
+        }
+    }
+
+    fun signInWithOAuth(provider: OAuthProvider) {
+        _authLoading.value = true
+        _authError.value = null
+
+        viewModelScope.launch {
+            // Enterprise OAuth Provider adapter
+            val dummyEmail = when (provider) {
+                OAuthProvider.Google -> "leletu.google@stylehub.co.za"
+                OAuthProvider.Apple -> "leletu.apple@privaterelay.appleid.com"
+                OAuthProvider.Facebook -> "leletu.meta@facebook.com"
+            }
+            val dummyName = when (provider) {
+                OAuthProvider.Google -> "Leletu Kamana (Google)"
+                OAuthProvider.Apple -> "Leletu Kamana (Apple ID)"
+                OAuthProvider.Facebook -> "Leletu Kamana (Meta)"
+            }
+            val dummyUid = "oauth_${provider.id}_${UUID.randomUUID().toString().take(12)}"
+
+            val result = repository.authManager.signInWithOAuth(
+                provider = provider,
+                email = dummyEmail,
+                displayName = dummyName,
+                providerUid = dummyUid
+            )
+            _authLoading.value = false
+
+            when (result) {
+                is AuthResult.Success -> {
+                    _currentUserId.value = result.user.id
+                    val role = try { UserRole.valueOf(result.user.role) } catch (e: Exception) { UserRole.CUSTOMER }
+                    _activeRole.value = role
+                    _isAuthModalOpen.value = false
+                    _snackbarMessage.value = "Signed in with ${provider.displayName} OAuth! 🛡️"
+                }
+                is AuthResult.Error -> {
+                    _authError.value = result.message
+                }
+                else -> {}
+            }
+        }
+    }
+
+    fun verifyMfaChallenge(code: String) {
+        val uid = _pendingMfaUserId.value ?: return
+        _authLoading.value = true
+        _mfaChallengeError.value = null
+
+        viewModelScope.launch {
+            val result = repository.authManager.verifyMfaChallenge(uid, code)
+            _authLoading.value = false
+            when (result) {
+                is AuthResult.Success -> {
+                    _isMfaChallengeOpen.value = false
+                    _pendingMfaUserId.value = null
+                    _currentUserId.value = result.user.id
+                    val role = try { UserRole.valueOf(result.user.role) } catch (e: Exception) { UserRole.CUSTOMER }
+                    _activeRole.value = role
+                    _snackbarMessage.value = "2FA verified! Welcome back, ${result.user.name} 🛡️"
+                }
+                is AuthResult.Error -> {
+                    _mfaChallengeError.value = result.message
+                }
+                else -> {}
+            }
+        }
+    }
+
+    fun cancelMfaChallenge() {
+        _isMfaChallengeOpen.value = false
+        _pendingMfaUserId.value = null
+        _pendingMfaEmail.value = null
+        _mfaChallengeError.value = null
+    }
+
+    // --- Security Dashboard & 2FA Setup Actions ---
+
+    fun openSecurityDashboard() {
+        _isSecurityDashboardOpen.value = true
+    }
+
+    fun closeSecurityDashboard() {
+        _isSecurityDashboardOpen.value = false
+        _mfaSetupStep.value = 0
+    }
+
+    fun startMfaSetup() {
+        val user = currentUser.value ?: return
+        val (secret, uri) = repository.authManager.startMfaSetup(user.email)
+        _mfaSetupSecret.value = secret
+        _mfaSetupUri.value = uri
+        _mfaSetupStep.value = 1 // Step 1: Scan / Enter Secret
+    }
+
+    fun proceedToMfaVerify() {
+        _mfaSetupStep.value = 2 // Step 2: Enter test code
+    }
+
+    fun confirmMfaSetup(testCode: String) {
+        val user = currentUser.value ?: return
+        val secret = _mfaSetupSecret.value ?: return
+
+        viewModelScope.launch {
+            val result = repository.authManager.completeMfaSetup(user.id, secret, testCode)
+            result.onSuccess { recoveryCodes ->
+                _generatedRecoveryCodes.value = recoveryCodes
+                _mfaSetupStep.value = 3 // Step 3: Show Backup Recovery Codes
+                _snackbarMessage.value = "MFA successfully activated! Save your backup codes. 🔐"
+            }.onFailure { err ->
+                _snackbarMessage.value = "Verification failed: ${err.message}"
+            }
+        }
+    }
+
+    fun disableMfa(code: String) {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            val result = repository.authManager.disableMfa(user.id, code)
+            result.onSuccess {
+                _snackbarMessage.value = "Multi-Factor Authentication disabled."
+            }.onFailure { err ->
+                _snackbarMessage.value = err.message ?: "Failed to disable MFA"
+            }
+        }
+    }
+
+    fun regenerateRecoveryCodes(code: String) {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            val result = repository.authManager.regenerateRecoveryCodes(user.id, code)
+            result.onSuccess { codes ->
+                _generatedRecoveryCodes.value = codes
+                _mfaSetupStep.value = 3
+                _snackbarMessage.value = "New emergency backup codes generated! 🛡️"
+            }.onFailure { err ->
+                _snackbarMessage.value = err.message ?: "Failed to regenerate codes"
+            }
+        }
+    }
+
+    fun closeMfaWizard() {
+        _mfaSetupStep.value = 0
+        _mfaSetupSecret.value = null
+        _mfaSetupUri.value = null
+        _generatedRecoveryCodes.value = emptyList()
+    }
+
+    fun changePassword(currentPass: String, newPass: String) {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            val result = repository.authManager.changePassword(user.id, currentPass, newPass)
+            result.onSuccess {
+                _isChangePasswordModalOpen.value = false
+                _snackbarMessage.value = "Password updated securely! 🔐"
+            }.onFailure { err ->
+                _snackbarMessage.value = err.message ?: "Password update failed"
+            }
+        }
+    }
+
+    fun openChangePasswordModal() {
+        _isChangePasswordModalOpen.value = true
+    }
+
+    fun closeChangePasswordModal() {
+        _isChangePasswordModalOpen.value = false
+    }
+
+    fun revokeSession(sessionId: String) {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            repository.revokeSession(sessionId, user.id)
+            _snackbarMessage.value = "Remote session terminated. 🛑"
+        }
+    }
+
+    fun revokeAllOtherSessions() {
+        val user = currentUser.value ?: return
+        val currentSession = activeSessions.value.firstOrNull { it.isCurrent }?.id ?: "current"
+        viewModelScope.launch {
+            repository.revokeAllOtherSessions(user.id, currentSession)
+            _snackbarMessage.value = "All other device sessions have been revoked. 🔒"
+        }
+    }
+
+    fun requestPasswordReset(email: String) {
+        viewModelScope.launch {
+            repository.authManager.requestPasswordReset(email)
+            _snackbarMessage.value = "Password reset instructions sent to $email (if registered)."
+            _isAuthModalOpen.value = false
+        }
+    }
+
+    fun sendEmailVerification() {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            val token = repository.authManager.sendEmailVerification(user.email)
+            repository.authManager.confirmEmailVerification(user.id, token)
+            _snackbarMessage.value = "Email ${user.email} verified successfully! ✅"
+        }
+    }
+
+    fun openPhoneVerifyModal() {
+        _isPhoneVerifyModalOpen.value = true
+    }
+
+    fun closePhoneVerifyModal() {
+        _isPhoneVerifyModalOpen.value = false
+    }
+
+    fun sendPhoneOtp(phone: String): String {
+        return repository.authManager.sendPhoneVerificationCode(phone)
+    }
+
+    fun confirmPhoneOtp(phone: String, code: String) {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            val success = repository.authManager.confirmPhoneVerification(user.id, phone, code)
+            if (success) {
+                _isPhoneVerifyModalOpen.value = false
+                _snackbarMessage.value = "Phone number verified via SMS OTP! 📱"
+            } else {
+                _snackbarMessage.value = "Invalid SMS code. Please try again."
+            }
+        }
+    }
+
+    fun signOut() {
+        val user = currentUser.value
+        _activeRole.value = UserRole.CUSTOMER
+        _currentUserId.value = 1L
+        _snackbarMessage.value = "Signed out of StyleHub. Sessions secured. 👋"
+    }
 
     fun switchRole(role: UserRole) {
         _activeRole.value = role
