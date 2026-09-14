@@ -58,6 +58,9 @@ interface StyleHubDao {
     suspend fun deleteBusiness(business: BusinessEntity)
 
     // --- Services ---
+    @Query("SELECT * FROM services")
+    fun getAllServices(): Flow<List<ServiceEntity>>
+
     @Query("SELECT * FROM services WHERE businessId = :businessId ORDER BY priceZar ASC")
     fun getServicesByBusiness(businessId: Long): Flow<List<ServiceEntity>>
 

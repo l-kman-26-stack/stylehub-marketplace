@@ -34,6 +34,11 @@ fun ProfileScreen(
     onOpenNotifications: () -> Unit,
     onOpenSecurity: () -> Unit = {},
     onOpenAuth: () -> Unit = {},
+    onOpenHelpCentre: () -> Unit = {},
+    onOpenAboutUs: () -> Unit = {},
+    onOpenLegal: () -> Unit = {},
+    onOpenLandingPage: () -> Unit = {},
+    onOpenTemplates: () -> Unit = {},
     onSignOut: () -> Unit = {}
 ) {
     Column(
@@ -284,9 +289,43 @@ fun ProfileScreen(
                 )
                 HorizontalDivider()
                 ListItem(
-                    headlineContent = { Text("About StyleHub MVP") },
-                    supportingContent = { Text("Version 1.0 • South Africa Grooming Marketplace") },
-                    leadingContent = { Icon(Icons.Outlined.Info, contentDescription = null, tint = GoldPrimary) }
+                    headlineContent = { Text("Help & Support Desk") },
+                    supportingContent = { Text("Submit tickets, view FAQs & direct escalation") },
+                    leadingContent = { Icon(Icons.Outlined.HelpOutline, contentDescription = null, tint = GoldPrimary) },
+                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                    modifier = Modifier.clickable { onOpenHelpCentre() }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("About StyleHub & Mission") },
+                    supportingContent = { Text("Building South Africa's premier grooming ecosystem") },
+                    leadingContent = { Icon(Icons.Outlined.Info, contentDescription = null, tint = GoldPrimary) },
+                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                    modifier = Modifier.clickable { onOpenAboutUs() }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("POPIA Privacy, Terms & Compliance") },
+                    supportingContent = { Text("Data protection, Information Officer & cancellation policies") },
+                    leadingContent = { Icon(Icons.Outlined.Policy, contentDescription = null, tint = GoldPrimary) },
+                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                    modifier = Modifier.clickable { onOpenLegal() }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("Communication & SMS Templates") },
+                    supportingContent = { Text("SMS & email transactional notification previews") },
+                    leadingContent = { Icon(Icons.Outlined.Email, contentDescription = null, tint = GoldPrimary) },
+                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                    modifier = Modifier.clickable { onOpenTemplates() }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("Public Landing Page") },
+                    supportingContent = { Text("View the public visitor marketing experience") },
+                    leadingContent = { Icon(Icons.Outlined.Public, contentDescription = null, tint = GoldPrimary) },
+                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                    modifier = Modifier.clickable { onOpenLandingPage() }
                 )
             }
         }

@@ -104,6 +104,7 @@ class StyleHubRepository(private val dao: StyleHubDao) {
     suspend fun deleteBusiness(business: BusinessEntity) = dao.deleteBusiness(business)
 
     // --- Services ---
+    val allServices: Flow<List<ServiceEntity>> = dao.getAllServices()
     fun getServices(businessId: Long): Flow<List<ServiceEntity>> = dao.getServicesByBusiness(businessId)
 
     suspend fun addService(service: ServiceEntity): Long = dao.insertService(service)

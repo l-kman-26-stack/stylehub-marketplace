@@ -7,10 +7,58 @@ import com.example.data.api.ChatMessage
 import com.example.data.api.GeminiClient
 import com.example.data.api.GroundingSource
 import com.example.data.local.entities.*
+import com.example.data.locations.SouthAfricaLocations
 import com.example.data.repository.StyleHubRepository
 import com.example.security.*
+import java.util.UUID
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+
+enum class PublicViewMode {
+    LANDING,
+    APP_MAIN,
+    FOR_BUSINESSES,
+    ABOUT_US,
+    HELP_CENTRE,
+    SUPPORT_TICKET_FORM,
+    LEGAL_TERMS,
+    LEGAL_PRIVACY,
+    LEGAL_BUSINESS_TERMS,
+    LEGAL_COOKIES,
+    LEGAL_COMMUNITY,
+    PRODUCTION_CHECKLIST,
+    TRANSACTIONAL_TEMPLATES,
+    ADMIN_SETTINGS
+}
+
+data class SupportTicket(
+    val id: String,
+    val category: String,
+    val subject: String,
+    val description: String,
+    val priority: String,
+    val status: String,
+    val createdAt: String,
+    val userEmail: String
+)
+
+data class PlatformSettings(
+    val platformName: String = "StyleHub",
+    val tagline: String = "Find Your Style. Find Your Professional.",
+    val supportEmail: String = "support@stylehub.co.za",
+    val supportPhone: String = "+27 10 824 9000",
+    val infoOfficerEmail: String = "privacy@stylehub.co.za",
+    val registeredEntityName: String = "StyleHub Technologies (Pty) Ltd",
+    val registrationNumberPlaceholder: String = "2026/012948/07 (Pending Final CIPC Filing)",
+    val registeredAddressPlaceholder: String = "138 West Street, Sandton Central, Johannesburg, 2196, South Africa",
+    val announcementActive: Boolean = true,
+    val announcementText: String = "🚀 StyleHub Enterprise Launch: Discover verified barbers & salons across all 9 South African provinces with zero booking fees!",
+    val maintenanceMode: Boolean = false,
+    val enableInstantBooking: Boolean = true,
+    val enableTotpMfa: Boolean = true,
+    val enableAiStylistConsultant: Boolean = true
+)
 
 enum class CustomerTab {
     HOME,
@@ -47,9 +95,11 @@ data class FilterState(
     val category: String? = null,
     val priceFilter: PriceFilter = PriceFilter.ALL,
     val ratingFilter: RatingFilter = RatingFilter.ANY,
+    val province: String = "All Provinces",
     val city: String = "All Cities",
     val suburb: String = "All Suburbs",
     val onlyOpenNow: Boolean = false,
+    val onlyVerified: Boolean = false,
     val sortOption: SortOption = SortOption.RECOMMENDED
 )
 
@@ -85,22 +135,39 @@ class StyleHubViewModel(private val repository: StyleHubRepository) : ViewModel(
     val approvedBusinesses: StateFlow<List<BusinessEntity>> = repository.approvedBusinesses
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // All Services across all businesses
+    val allServices: StateFlow<List<ServiceEntity>> = repository.allServices
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // All Businesses (Admin)
     val allBusinessesAdmin: StateFlow<List<BusinessEntity>> = repository.allBusinessesAdmin
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Filtered Businesses Stream
+    // Filtered Businesses Stream (includes service names and locations)
     val filteredBusinesses: StateFlow<List<BusinessEntity>> = combine(
         approvedBusinesses,
-        _filterState
-    ) { businesses, filters ->
+        _filterState,
+        allServices
+    ) { businesses, filters, services ->
+        val servicesByBusiness = services.groupBy { it.businessId }
+        val q = filters.query.trim()
         businesses.filter { biz ->
-            val matchesQuery = filters.query.isBlank() ||
-                    biz.name.contains(filters.query, ignoreCase = true) ||
-                    biz.category.contains(filters.query, ignoreCase = true) ||
-                    biz.description.contains(filters.query, ignoreCase = true) ||
-                    biz.suburb.contains(filters.query, ignoreCase = true) ||
-                    biz.city.contains(filters.query, ignoreCase = true)
+            val bizServices = servicesByBusiness[biz.id].orEmpty()
+            val matchesService = q.isNotBlank() && bizServices.any { s ->
+                s.name.contains(q, ignoreCase = true) ||
+                s.description.contains(q, ignoreCase = true) ||
+                s.category.contains(q, ignoreCase = true)
+            }
+
+            val matchesQuery = q.isBlank() ||
+                    matchesService ||
+                    biz.name.contains(q, ignoreCase = true) ||
+                    biz.category.contains(q, ignoreCase = true) ||
+                    biz.description.contains(q, ignoreCase = true) ||
+                    biz.suburb.contains(q, ignoreCase = true) ||
+                    biz.city.contains(q, ignoreCase = true) ||
+                    biz.province.contains(q, ignoreCase = true) ||
+                    biz.streetAddress.contains(q, ignoreCase = true)
 
             val matchesCategory = filters.category == null || biz.category.equals(filters.category, ignoreCase = true)
 
@@ -114,11 +181,15 @@ class StyleHubViewModel(private val repository: StyleHubRepository) : ViewModel(
 
             val matchesRating = biz.rating >= filters.ratingFilter.minRating
 
+            val matchesProvince = filters.province == "All Provinces" || biz.province.equals(filters.province, ignoreCase = true)
+
             val matchesCity = filters.city == "All Cities" || biz.city.equals(filters.city, ignoreCase = true)
 
             val matchesSuburb = filters.suburb == "All Suburbs" || biz.suburb.equals(filters.suburb, ignoreCase = true)
 
-            matchesQuery && matchesCategory && matchesPrice && matchesRating && matchesCity && matchesSuburb
+            val matchesVerified = !filters.onlyVerified || biz.isVerified
+
+            matchesQuery && matchesCategory && matchesPrice && matchesRating && matchesProvince && matchesCity && matchesSuburb && matchesVerified
         }.sortedWith { a, b ->
             when (filters.sortOption) {
                 SortOption.RECOMMENDED -> b.isFeatured.compareTo(a.isFeatured).takeIf { it != 0 } ?: b.rating.compareTo(a.rating)
@@ -414,6 +485,97 @@ I can help you with:
 
     private val _isChangePasswordModalOpen = MutableStateFlow(false)
     val isChangePasswordModalOpen: StateFlow<Boolean> = _isChangePasswordModalOpen.asStateFlow()
+
+    // Aliases for clean UI binding
+    val isAuthLoading: StateFlow<Boolean> = _authLoading.asStateFlow()
+    val authErrorMessage: StateFlow<String?> = _authError.asStateFlow()
+    val lockoutMinutes: StateFlow<Long?> = _accountLockoutMinutes.asStateFlow()
+    val mfaChallengeEmail: StateFlow<String?> = _pendingMfaEmail.asStateFlow()
+    val mfaChallengePhone: StateFlow<String?> = _pendingMfaMaskedPhone.asStateFlow()
+    val auditLogs: StateFlow<List<SecurityAuditLogEntity>> = userAuditLogs
+
+    // Splash and Launch Experience
+    private val _isSplashVisible = MutableStateFlow(true)
+    val isSplashVisible: StateFlow<Boolean> = _isSplashVisible.asStateFlow()
+
+    fun dismissSplash() {
+        _isSplashVisible.value = false
+    }
+
+    // Public / Corporate Navigation Mode
+    private val _publicViewMode = MutableStateFlow(PublicViewMode.LANDING)
+    val publicViewMode: StateFlow<PublicViewMode> = _publicViewMode.asStateFlow()
+
+    fun setPublicViewMode(mode: PublicViewMode) {
+        _publicViewMode.value = mode
+    }
+
+    fun enterAppMain() {
+        _publicViewMode.value = PublicViewMode.APP_MAIN
+    }
+
+    // Platform Administration & Settings
+    private val _platformSettings = MutableStateFlow(PlatformSettings())
+    val platformSettings: StateFlow<PlatformSettings> = _platformSettings.asStateFlow()
+
+    fun updatePlatformSettings(newSettings: PlatformSettings) {
+        _platformSettings.value = newSettings
+        _snackbarMessage.value = "Platform configuration updated successfully! ⚙️"
+    }
+
+    // Interactive Support Tickets
+    private val _supportTickets = MutableStateFlow<List<SupportTicket>>(listOf(
+        SupportTicket(
+            id = "TICK-SA-8921",
+            category = "Business Listing",
+            subject = "Updating operating hours for Menlyn salon",
+            description = "Need assistance updating Sunday trading times for holiday schedule.",
+            priority = "Normal",
+            status = "Resolved",
+            createdAt = "2026-08-20 09:30",
+            userEmail = "sipho.dl@mensgroom.co.za"
+        ),
+        SupportTicket(
+            id = "TICK-SA-9104",
+            category = "Account Security",
+            subject = "TOTP Authenticator setup query",
+            description = "Inquiry regarding backup codes recovery.",
+            priority = "High",
+            status = "Open (Under Review)",
+            createdAt = "2026-08-25 14:10",
+            userEmail = "leletukamana9@gmail.com"
+        )
+    ))
+    val supportTickets: StateFlow<List<SupportTicket>> = _supportTickets.asStateFlow()
+
+    fun submitSupportTicket(
+        category: String,
+        subject: String,
+        description: String,
+        priority: String,
+        email: String
+    ): String {
+        val ticketId = "TICK-SA-${(1000..9999).random()}"
+        val newTicket = SupportTicket(
+            id = ticketId,
+            category = category,
+            subject = subject,
+            description = description,
+            priority = priority,
+            status = "Submitted (Active)",
+            createdAt = "2026-08-26 12:00",
+            userEmail = email
+        )
+        _supportTickets.value = listOf(newTicket) + _supportTickets.value
+        _snackbarMessage.value = "Support ticket $ticketId logged successfully! Reference saved. 🎫"
+        return ticketId
+    }
+
+    fun signInWithEmailPassword(email: String, pass: String) = signInWithEmail(email, pass)
+    fun signUp(name: String, email: String, phone: String, pass: String, role: UserRole, city: String, prov: String) =
+        signUpWithEmail(name, email, phone, pass, role, city, prov)
+    fun verifyEmail() = sendEmailVerification()
+    fun linkOAuth(provider: OAuthProvider) = signInWithOAuth(provider)
 
     // --- Authentication Actions ---
 
@@ -782,8 +944,20 @@ I can help you with:
         _filterState.value = _filterState.value.copy(ratingFilter = filter)
     }
 
+    fun updateProvinceFilter(province: String) {
+        _filterState.value = _filterState.value.copy(province = province, city = "All Cities", suburb = "All Suburbs")
+    }
+
     fun updateCityFilter(city: String) {
-        _filterState.value = _filterState.value.copy(city = city)
+        _filterState.value = _filterState.value.copy(city = city, suburb = "All Suburbs")
+    }
+
+    fun updateSuburbFilter(suburb: String) {
+        _filterState.value = _filterState.value.copy(suburb = suburb)
+    }
+
+    fun updateOnlyVerified(onlyVerified: Boolean) {
+        _filterState.value = _filterState.value.copy(onlyVerified = onlyVerified)
     }
 
     fun updateSortOption(sort: SortOption) {
@@ -792,6 +966,10 @@ I can help you with:
 
     fun resetFilters() {
         _filterState.value = FilterState()
+    }
+
+    fun clearSearch() {
+        _filterState.value = _filterState.value.copy(query = "")
     }
 
     fun toggleSave(businessId: Long) {

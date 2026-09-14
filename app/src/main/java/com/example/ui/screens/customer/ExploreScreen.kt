@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.local.entities.BusinessCategory
 import com.example.data.local.entities.BusinessEntity
 import com.example.ui.components.BusinessCard
+import com.example.ui.components.LocationFilterSheet
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.FilterState
 import com.example.ui.viewmodel.PriceFilter
@@ -40,6 +41,7 @@ fun ExploreScreen(
     onBookBusiness: (BusinessEntity) -> Unit
 ) {
     var showFilterSheet by remember { mutableStateOf(false) }
+    var showLocationFilterSheet by remember { mutableStateOf(false) }
 
     val cities = listOf("All Cities", "Johannesburg", "Cape Town", "Durban", "Pretoria")
 
@@ -96,7 +98,7 @@ fun ExploreScreen(
                 ) {
                     // Filter Sheet Modal Trigger
                     FilterChip(
-                        selected = filterState.category != null || filterState.priceFilter != PriceFilter.ALL || filterState.ratingFilter != RatingFilter.ANY || filterState.city != "All Cities",
+                        selected = filterState.category != null || filterState.priceFilter != PriceFilter.ALL || filterState.ratingFilter != RatingFilter.ANY || filterState.city != "All Cities" || filterState.onlyVerified,
                         onClick = { showFilterSheet = true },
                         label = { Text("Filters") },
                         leadingIcon = {
@@ -107,6 +109,27 @@ fun ExploreScreen(
                             selectedLabelColor = GoldPrimary
                         ),
                         modifier = Modifier.testTag("open_filters_sheet_button")
+                    )
+
+                    // South Africa Location Hierarchical Trigger
+                    FilterChip(
+                        selected = filterState.province != "All Provinces" || filterState.city != "All Cities",
+                        onClick = { showLocationFilterSheet = true },
+                        label = {
+                            Text(
+                                if (filterState.suburb != "All Suburbs") filterState.suburb
+                                else if (filterState.city != "All Cities") filterState.city
+                                else if (filterState.province != "All Provinces") filterState.province
+                                else "🇿🇦 SA Location"
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp), tint = GoldPrimary)
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = GoldContainer,
+                            selectedLabelColor = GoldPrimary
+                        )
                     )
 
                     // City Filter Chips
@@ -285,6 +308,23 @@ fun ExploreScreen(
 
                 HorizontalDivider()
 
+                // Verified Only Filter
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Verified Businesses Only", fontWeight = FontWeight.SemiBold)
+                        Text("Show only vetted and approved South African barbers/salons", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(
+                        checked = filterState.onlyVerified,
+                        onCheckedChange = { viewModel.updateOnlyVerified(it) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = GoldPrimary, checkedTrackColor = GoldContainer)
+                    )
+                }
+
                 // Price Filters
                 Text(
                     text = "Price Range (ZAR)",
@@ -341,4 +381,18 @@ fun ExploreScreen(
             }
         }
     }
+
+    // South Africa Location Filter Bottom Sheet
+    LocationFilterSheet(
+        isOpen = showLocationFilterSheet,
+        currentProvince = filterState.province,
+        currentCity = filterState.city,
+        currentSuburb = filterState.suburb,
+        onDismiss = { showLocationFilterSheet = false },
+        onLocationSelected = { prov, city, sub ->
+            viewModel.updateProvinceFilter(prov)
+            viewModel.updateCityFilter(city)
+            viewModel.updateSuburbFilter(sub)
+        }
+    )
 }

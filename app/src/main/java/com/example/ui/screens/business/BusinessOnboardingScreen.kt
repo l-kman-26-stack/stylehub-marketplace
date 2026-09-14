@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.locations.SouthAfricaLocations
 import com.example.data.local.entities.BusinessCategory
 import com.example.data.local.entities.ServiceEntity
 import com.example.data.local.entities.TeamMemberEntity
@@ -191,25 +192,85 @@ fun BusinessOnboardingScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    // Province Selection
+                    Text("Province (All 9 Provinces) *", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    var provinceDropdownExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = provinceDropdownExpanded,
+                        onExpandedChange = { provinceDropdownExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = province,
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = provinceDropdownExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        ExposedDropdownMenu(
+                            expanded = provinceDropdownExpanded,
+                            onDismissRequest = { provinceDropdownExpanded = false }
+                        ) {
+                            SouthAfricaLocations.getAllProvinces().forEach { prov ->
+                                DropdownMenuItem(
+                                    text = { Text(prov) },
+                                    onClick = {
+                                        province = prov
+                                        val citiesInProv = SouthAfricaLocations.getCitiesForProvince(prov)
+                                        if (citiesInProv.isNotEmpty()) {
+                                            city = citiesInProv.first()
+                                            val suburbsInCity = SouthAfricaLocations.getSuburbsForCity(prov, city)
+                                            if (suburbsInCity.isNotEmpty()) {
+                                                suburb = suburbsInCity.first()
+                                            }
+                                        }
+                                        provinceDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // City Selection
+                    Text("City / District *", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    var cityDropdownExpanded by remember { mutableStateOf(false) }
+                    val currentCities = SouthAfricaLocations.getCitiesForProvince(province)
+                    ExposedDropdownMenuBox(
+                        expanded = cityDropdownExpanded,
+                        onExpandedChange = { cityDropdownExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = city,
+                            onValueChange = { city = it },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = cityDropdownExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        ExposedDropdownMenu(
+                            expanded = cityDropdownExpanded,
+                            onDismissRequest = { cityDropdownExpanded = false }
+                        ) {
+                            currentCities.forEach { c ->
+                                DropdownMenuItem(
+                                    text = { Text(c) },
+                                    onClick = {
+                                        city = c
+                                        val suburbsInCity = SouthAfricaLocations.getSuburbsForCity(province, c)
+                                        if (suburbsInCity.isNotEmpty()) {
+                                            suburb = suburbsInCity.first()
+                                        }
+                                        cityDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     OutlinedTextField(
                         value = suburb,
                         onValueChange = { suburb = it },
                         label = { Text("Suburb / Area *") },
-                        placeholder = { Text("e.g. Sandton, Camps Bay, Menlyn") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
-                        value = city,
-                        onValueChange = { city = it },
-                        label = { Text("City *") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
-                        value = province,
-                        onValueChange = { province = it },
-                        label = { Text("Province *") },
+                        placeholder = { Text("e.g. Sandton, Rosebank, Menlyn, Umhlanga") },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -236,6 +297,7 @@ fun BusinessOnboardingScreen(
 
                         Button(
                             onClick = { step = 3 },
+                            enabled = address.isNotBlank() && suburb.isNotBlank() && city.isNotBlank(),
                             modifier = Modifier.weight(1f).height(48.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = CharcoalDark)
