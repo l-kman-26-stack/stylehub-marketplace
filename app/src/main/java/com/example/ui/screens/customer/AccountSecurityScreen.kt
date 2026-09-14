@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -66,7 +67,8 @@ fun AccountSecurityScreen(
     onRevokeAllOtherSessions: () -> Unit,
     onVerifyEmail: () -> Unit,
     onOpenPhoneVerify: () -> Unit,
-    onLinkOAuth: (OAuthProvider) -> Unit
+    onLinkOAuth: (OAuthProvider) -> Unit,
+    onOpenAccountManagement: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showChangePasswordDialog by remember { mutableStateOf(false) }
@@ -509,6 +511,73 @@ fun AccountSecurityScreen(
                                 AuditLogItem(log = log)
                             }
                         }
+                    }
+                }
+            }
+
+            // 5. Account Lifecycle Management (Activate, Deactivate, Delete)
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("security_account_lifecycle_card")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Outlined.ManageAccounts, contentDescription = null, tint = GoldPrimary)
+                            Text("Account Status & Management", fontWeight = FontWeight.Bold)
+                        }
+
+                        val status = currentUser?.accountStatus ?: "ACTIVE"
+                        val statusColor = when (status) {
+                            "ACTIVE" -> Color(0xFF22C55E)
+                            "DEACTIVATED" -> Color(0xFFF59E0B)
+                            "PENDING_DELETION" -> Color(0xFFEF4444)
+                            else -> Color(0xFF6B7280)
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = statusColor.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = status.replace("_", " "),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = statusColor,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "Safely manage your account lifecycle: temporarily deactivate your account to take a break, or schedule permanent deletion.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedButton(
+                        onClick = onOpenAccountManagement,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("security_open_account_management_btn")
+                    ) {
+                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Open Account Status & Management")
                     }
                 }
             }

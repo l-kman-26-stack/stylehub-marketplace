@@ -33,6 +33,7 @@ fun ProfileScreen(
     totalSaved: Int,
     onOpenNotifications: () -> Unit,
     onOpenSecurity: () -> Unit = {},
+    onOpenAccountManagement: () -> Unit = {},
     onOpenAuth: () -> Unit = {},
     onOpenHelpCentre: () -> Unit = {},
     onOpenAboutUs: () -> Unit = {},
@@ -49,6 +50,62 @@ fun ProfileScreen(
             .testTag("profile_screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Prominent Alert Banner if Account is Deactivated or Pending Deletion
+        val accountStatus = currentUser?.accountStatus ?: "ACTIVE"
+        if (accountStatus != "ACTIVE") {
+            val isDeactivated = accountStatus == "DEACTIVATED"
+            val bannerColor = if (isDeactivated) Color(0xFFF59E0B) else Color(0xFFEF4444)
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = bannerColor.copy(alpha = 0.12f),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, bannerColor),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("profile_account_status_banner")
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isDeactivated) Icons.Default.PauseCircle else Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = bannerColor,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isDeactivated) "Account is Deactivated" else "Account Pending Deletion",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = bannerColor
+                        )
+                        Text(
+                            text = if (isDeactivated)
+                                "Your account is temporarily disabled. Tap to activate and restore full access."
+                            else
+                                "30-day grace period is active. You can cancel deletion anytime.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Button(
+                        onClick = onOpenAccountManagement,
+                        colors = ButtonDefaults.buttonColors(containerColor = bannerColor),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.testTag("banner_manage_account_btn")
+                    ) {
+                        Text(
+                            text = if (isDeactivated) "Activate" else "Manage",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        }
+
         // User Info Header Card
         Surface(
             shape = RoundedCornerShape(16.dp),
@@ -255,6 +312,41 @@ fun ProfileScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
+                // Account Status & Management (Activate, Deactivate, Delete)
+                ListItem(
+                    headlineContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Account Status / Account Management", fontWeight = FontWeight.SemiBold)
+                            val statusStr = currentUser?.accountStatus ?: "ACTIVE"
+                            val statusColor = when (statusStr) {
+                                "ACTIVE" -> Color(0xFF22C55E)
+                                "DEACTIVATED" -> Color(0xFFF59E0B)
+                                "PENDING_DELETION" -> Color(0xFFEF4444)
+                                else -> Color(0xFF6B7280)
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = statusColor.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = statusStr.replace("_", " "),
+                                    fontSize = 9.sp,
+                                    color = statusColor,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    },
+                    supportingContent = { Text("Activate, deactivate or permanently delete account") },
+                    leadingContent = { Icon(Icons.Outlined.ManageAccounts, contentDescription = null, tint = GoldPrimary) },
+                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                    modifier = Modifier
+                        .clickable { onOpenAccountManagement() }
+                        .testTag("profile_account_status_management_item")
+                )
+                HorizontalDivider()
+
                 // Enterprise Security Center
                 ListItem(
                     headlineContent = {

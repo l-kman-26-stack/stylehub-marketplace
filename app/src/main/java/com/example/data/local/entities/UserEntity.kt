@@ -9,6 +9,13 @@ enum class UserRole {
     ADMIN
 }
 
+enum class AccountStatus(val displayName: String) {
+    ACTIVE("Active"),
+    DEACTIVATED("Deactivated"),
+    PENDING_DELETION("Pending Deletion"),
+    DELETED("Deleted")
+}
+
 @Entity(tableName = "users")
 data class UserEntity(
     @PrimaryKey(autoGenerate = true)
@@ -38,5 +45,11 @@ data class UserEntity(
     val lockoutUntil: Long? = null,
     val forceMfa: Boolean = false,
     val lastLoginAt: Long? = null,
-    val lastPasswordChangeAt: Long? = null
+    val lastPasswordChangeAt: Long? = null,
+
+    // --- Account Lifecycle Management Fields ---
+    val accountStatus: String = AccountStatus.ACTIVE.name,
+    val deletionRequestedAt: Long? = null,
+    val scheduledDeletionAt: Long? = null,
+    val deactivatedAt: Long? = null
 )

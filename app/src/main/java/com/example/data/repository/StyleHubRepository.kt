@@ -233,4 +233,20 @@ class StyleHubRepository(private val dao: StyleHubDao) {
      fun getAuditLogs(userId: Long): Flow<List<SecurityAuditLogEntity>> = authManager.getAuditLogs(userId)
 
      fun getAllAuditLogs(): Flow<List<SecurityAuditLogEntity>> = authManager.getAllAuditLogs()
+
+     // --- Account Lifecycle Management ---
+     suspend fun deactivateAccount(userId: Long, passwordOrPin: String): Result<Unit> =
+         authManager.deactivateAccount(userId, passwordOrPin)
+
+     suspend fun reactivateAccount(userId: Long, passwordOrPin: String): Result<Unit> =
+         authManager.reactivateAccount(userId, passwordOrPin)
+
+     suspend fun requestAccountDeletion(userId: Long, passwordOrPin: String): Result<Long> =
+         authManager.requestAccountDeletion(userId, passwordOrPin)
+
+     suspend fun cancelAccountDeletion(userId: Long): Result<Unit> =
+         authManager.cancelAccountDeletion(userId)
+
+     suspend fun purgeAccountPermanently(userId: Long): Result<Unit> =
+         authManager.purgeAccountPermanently(userId)
 }

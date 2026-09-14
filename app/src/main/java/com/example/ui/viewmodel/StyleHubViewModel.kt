@@ -486,6 +486,117 @@ I can help you with:
     private val _isChangePasswordModalOpen = MutableStateFlow(false)
     val isChangePasswordModalOpen: StateFlow<Boolean> = _isChangePasswordModalOpen.asStateFlow()
 
+    // Account Management / Status / Deactivate / Delete Flow
+    private val _isAccountManagementOpen = MutableStateFlow(false)
+    val isAccountManagementOpen: StateFlow<Boolean> = _isAccountManagementOpen.asStateFlow()
+
+    private val _isAccountActionLoading = MutableStateFlow(false)
+    val isAccountActionLoading: StateFlow<Boolean> = _isAccountActionLoading.asStateFlow()
+
+    private val _accountActionError = MutableStateFlow<String?>(null)
+    val accountActionError: StateFlow<String?> = _accountActionError.asStateFlow()
+
+    fun openAccountManagement() {
+        _isAccountManagementOpen.value = true
+        _accountActionError.value = null
+    }
+
+    fun closeAccountManagement() {
+        _isAccountManagementOpen.value = false
+        _accountActionError.value = null
+    }
+
+    fun clearAccountActionError() {
+        _accountActionError.value = null
+    }
+
+    fun deactivateAccount(password: String, onSuccess: () -> Unit = {}) {
+        val user = currentUser.value ?: return
+        _isAccountActionLoading.value = true
+        _accountActionError.value = null
+
+        viewModelScope.launch {
+            val result = repository.deactivateAccount(user.id, password)
+            _isAccountActionLoading.value = false
+            result.onSuccess {
+                _snackbarMessage.value = "Account Deactivated: Your account has been temporarily deactivated. You can reactivate it when you are ready."
+                onSuccess()
+            }.onFailure { ex ->
+                _accountActionError.value = ex.message ?: "Failed to deactivate account. Please check credentials."
+            }
+        }
+    }
+
+    fun reactivateAccount(password: String, onSuccess: () -> Unit = {}) {
+        val user = currentUser.value ?: return
+        _isAccountActionLoading.value = true
+        _accountActionError.value = null
+
+        viewModelScope.launch {
+            val result = repository.reactivateAccount(user.id, password)
+            _isAccountActionLoading.value = false
+            result.onSuccess {
+                _snackbarMessage.value = "Account Activated: Your account has been successfully reactivated. You can now use the app normally."
+                onSuccess()
+            }.onFailure { ex ->
+                _accountActionError.value = ex.message ?: "Failed to activate account. Please check credentials."
+            }
+        }
+    }
+
+    fun requestAccountDeletion(password: String, onSuccess: () -> Unit = {}) {
+        val user = currentUser.value ?: return
+        _isAccountActionLoading.value = true
+        _accountActionError.value = null
+
+        viewModelScope.launch {
+            val result = repository.requestAccountDeletion(user.id, password)
+            _isAccountActionLoading.value = false
+            result.onSuccess {
+                _snackbarMessage.value = "Deletion Requested: Your account has been scheduled for deletion. You have 30 days to cancel the deletion request."
+                onSuccess()
+            }.onFailure { ex ->
+                _accountActionError.value = ex.message ?: "Deletion request failed. Please try again later."
+            }
+        }
+    }
+
+    fun cancelAccountDeletion(onSuccess: () -> Unit = {}) {
+        val user = currentUser.value ?: return
+        _isAccountActionLoading.value = true
+        _accountActionError.value = null
+
+        viewModelScope.launch {
+            val result = repository.cancelAccountDeletion(user.id)
+            _isAccountActionLoading.value = false
+            result.onSuccess {
+                _snackbarMessage.value = "Deletion Cancelled: Your account deletion request has been cancelled. Your account is active again."
+                onSuccess()
+            }.onFailure { ex ->
+                _accountActionError.value = ex.message ?: "Failed to cancel deletion request."
+            }
+        }
+    }
+
+    fun purgeAccountPermanently(onSuccess: () -> Unit = {}) {
+        val user = currentUser.value ?: return
+        _isAccountActionLoading.value = true
+        _accountActionError.value = null
+
+        viewModelScope.launch {
+            val result = repository.purgeAccountPermanently(user.id)
+            _isAccountActionLoading.value = false
+            result.onSuccess {
+                _snackbarMessage.value = "Deletion Completed: Your account has been permanently deleted according to our account deletion policy."
+                _isAccountManagementOpen.value = false
+                signOut()
+                onSuccess()
+            }.onFailure { ex ->
+                _accountActionError.value = ex.message ?: "Failed to complete permanent account deletion."
+            }
+        }
+    }
+
     // Aliases for clean UI binding
     val isAuthLoading: StateFlow<Boolean> = _authLoading.asStateFlow()
     val authErrorMessage: StateFlow<String?> = _authError.asStateFlow()

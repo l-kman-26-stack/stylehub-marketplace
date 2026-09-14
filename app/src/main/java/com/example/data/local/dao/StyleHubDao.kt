@@ -29,6 +29,9 @@ interface StyleHubDao {
     @Update
     suspend fun updateUser(user: UserEntity)
 
+    @Query("DELETE FROM users WHERE id = :userId")
+    suspend fun deleteUserById(userId: Long)
+
     // --- Businesses ---
     @Query("SELECT * FROM businesses WHERE status = 'APPROVED' ORDER BY isFeatured DESC, rating DESC")
     fun getAllApprovedBusinesses(): Flow<List<BusinessEntity>>

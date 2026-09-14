@@ -132,4 +132,72 @@ class ExampleUnitTest {
         assertEquals(1, sandtonMatches.size)
         assertEquals("Legendary Grooming Sandton", sandtonMatches.first().name)
     }
+
+    @Test
+    fun accountLifecycle_statusTransitionsAndGracePeriod() {
+        val now = System.currentTimeMillis()
+        val gracePeriodMs = 30L * 24 * 60 * 60 * 1000L
+        val scheduledDeletion = now + gracePeriodMs
+
+        val activeUser = com.example.data.local.entities.UserEntity(
+            id = 10,
+            name = "Test User",
+            email = "user@test.co.za",
+            phone = "0821234567",
+            passwordHash = "hash123",
+            salt = "salt123",
+            role = "CUSTOMER",
+            accountStatus = com.example.data.local.entities.AccountStatus.ACTIVE.name
+        )
+        assertEquals("ACTIVE", activeUser.accountStatus)
+
+        // Deactivate
+        val deactivatedUser = activeUser.copy(
+            accountStatus = com.example.data.local.entities.AccountStatus.DEACTIVATED.name,
+            deactivatedAt = now
+        )
+        assertEquals("DEACTIVATED", deactivatedUser.accountStatus)
+        assertEquals(now, deactivatedUser.deactivatedAt)
+
+        // Reactivate
+        val reactivatedUser = deactivatedUser.copy(
+            accountStatus = com.example.data.local.entities.AccountStatus.ACTIVE.name,
+            deactivatedAt = null
+        )
+        assertEquals("ACTIVE", reactivatedUser.accountStatus)
+        assertNull(reactivatedUser.deactivatedAt)
+
+        // Request Deletion (30-day grace period)
+        val pendingUser = reactivatedUser.copy(
+            accountStatus = com.example.data.local.entities.AccountStatus.PENDING_DELETION.name,
+            deletionRequestedAt = now,
+            scheduledDeletionAt = scheduledDeletion
+        )
+        assertEquals("PENDING_DELETION", pendingUser.accountStatus)
+        val daysRemaining = ((pendingUser.scheduledDeletionAt!! - now) / (1000L * 60 * 60 * 24)).toInt()
+        assertEquals(30, daysRemaining)
+
+        // Cancel Deletion
+        val restoredUser = pendingUser.copy(
+            accountStatus = com.example.data.local.entities.AccountStatus.ACTIVE.name,
+            deletionRequestedAt = null,
+            scheduledDeletionAt = null
+        )
+        assertEquals("ACTIVE", restoredUser.accountStatus)
+        assertNull(restoredUser.deletionRequestedAt)
+        assertNull(restoredUser.scheduledDeletionAt)
+    }
+
+    @Test
+    fun passwordSecurity_hashingAndVerification() {
+        val salt = com.example.security.SecurityValidator.generateSalt()
+        assertTrue(salt.isNotEmpty())
+        val password = "SecurePassword@2026"
+        val hash = com.example.security.SecurityValidator.hashPassword(password, salt)
+        val testHash = com.example.security.SecurityValidator.hashPassword(password, salt)
+        assertEquals(hash, testHash)
+
+        val wrongHash = com.example.security.SecurityValidator.hashPassword("WrongPassword123", salt)
+        assertNotEquals(hash, wrongHash)
+    }
 }

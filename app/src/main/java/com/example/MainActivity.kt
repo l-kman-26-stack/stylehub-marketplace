@@ -114,6 +114,11 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
     val mfaSetupUri by viewModel.mfaSetupUri.collectAsStateWithLifecycle()
     val generatedRecoveryCodes by viewModel.generatedRecoveryCodes.collectAsStateWithLifecycle()
 
+    // Account Lifecycle State
+    val isAccountManagementOpen by viewModel.isAccountManagementOpen.collectAsStateWithLifecycle()
+    val isAccountActionLoading by viewModel.isAccountActionLoading.collectAsStateWithLifecycle()
+    val accountActionError by viewModel.accountActionError.collectAsStateWithLifecycle()
+
     // Dialog & Sheet States
     val bookingDialogOpen by viewModel.bookingDialogOpen.collectAsStateWithLifecycle()
     val bookingService by viewModel.bookingService.collectAsStateWithLifecycle()
@@ -151,10 +156,13 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
     }
 
     // Intercept Back Press when in sub-screens
-    BackHandler(enabled = publicViewMode != PublicViewMode.APP_MAIN || isSecurityDashboardOpen || selectedBusinessId != null || isOnboardingOpen) {
+    BackHandler(enabled = publicViewMode != PublicViewMode.APP_MAIN || isAccountManagementOpen || isSecurityDashboardOpen || selectedBusinessId != null || isOnboardingOpen) {
         when {
             publicViewMode != PublicViewMode.LANDING && publicViewMode != PublicViewMode.APP_MAIN -> {
                 viewModel.setPublicViewMode(PublicViewMode.LANDING)
+            }
+            isAccountManagementOpen -> {
+                viewModel.closeAccountManagement()
             }
             isSecurityDashboardOpen -> {
                 viewModel.closeSecurityDashboard()
@@ -251,7 +259,7 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
             modifier = Modifier.fillMaxSize(),
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
-                if (!isSecurityDashboardOpen && selectedBusinessId == null && !isOnboardingOpen) {
+                if (!isAccountManagementOpen && !isSecurityDashboardOpen && selectedBusinessId == null && !isOnboardingOpen) {
                     StyleHubTopBar(
                         currentRole = activeRole,
                         onRoleChange = { role -> viewModel.switchRole(role) },
@@ -271,7 +279,7 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
                 }
             },
             bottomBar = {
-                if (!isSecurityDashboardOpen && activeRole == UserRole.CUSTOMER && selectedBusinessId == null && !isOnboardingOpen) {
+                if (!isAccountManagementOpen && !isSecurityDashboardOpen && activeRole == UserRole.CUSTOMER && selectedBusinessId == null && !isOnboardingOpen) {
                     StyleHubBottomNav(
                         currentTab = customerTab,
                         onTabSelected = { tab -> viewModel.selectTab(tab) },
@@ -284,11 +292,24 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(
-                        if (isSecurityDashboardOpen || selectedBusinessId != null || isOnboardingOpen) PaddingValues(0.dp) else innerPadding
+                        if (isAccountManagementOpen || isSecurityDashboardOpen || selectedBusinessId != null || isOnboardingOpen) PaddingValues(0.dp) else innerPadding
                     )
             ) {
-                // Full Screen Security & Identity Dashboard if opened
-                if (isSecurityDashboardOpen) {
+                // Full Screen Account Status & Management if opened
+                if (isAccountManagementOpen) {
+                    AccountManagementScreen(
+                        currentUser = currentUser,
+                        isLoading = isAccountActionLoading,
+                        errorMessage = accountActionError,
+                        onBack = { viewModel.closeAccountManagement() },
+                        onDeactivate = { pass -> viewModel.deactivateAccount(pass) },
+                        onReactivate = { pass -> viewModel.reactivateAccount(pass) },
+                        onRequestDeletion = { pass -> viewModel.requestAccountDeletion(pass) },
+                        onCancelDeletion = { viewModel.cancelAccountDeletion() },
+                        onPurgePermanently = { viewModel.purgeAccountPermanently() },
+                        onClearError = { viewModel.clearAccountActionError() }
+                    )
+                } else if (isSecurityDashboardOpen) {
                     AccountSecurityScreen(
                         currentUser = currentUser,
                         activeSessions = activeSessions,
@@ -309,7 +330,11 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
                         onRevokeAllOtherSessions = { viewModel.revokeAllOtherSessions() },
                         onVerifyEmail = { viewModel.verifyEmail() },
                         onOpenPhoneVerify = { showPhoneVerifyDialog = true },
-                        onLinkOAuth = { prov -> viewModel.linkOAuth(prov) }
+                        onLinkOAuth = { prov -> viewModel.linkOAuth(prov) },
+                        onOpenAccountManagement = {
+                            viewModel.closeSecurityDashboard()
+                            viewModel.openAccountManagement()
+                        }
                     )
                 } else if (selectedBusinessId != null && selectedBusiness != null) {
                     // Detailed Business View if opened
@@ -407,6 +432,7 @@ fun StyleHubApp(viewModel: StyleHubViewModel) {
                                         totalSaved = savedBusinesses.size,
                                         onOpenNotifications = { showNotificationSheet = true },
                                         onOpenSecurity = { viewModel.openSecurityDashboard() },
+                                        onOpenAccountManagement = { viewModel.openAccountManagement() },
                                         onOpenAuth = { viewModel.openAuthModal(0) },
                                         onOpenHelpCentre = { viewModel.setPublicViewMode(PublicViewMode.HELP_CENTRE) },
                                         onOpenAboutUs = { viewModel.setPublicViewMode(PublicViewMode.ABOUT_US) },
