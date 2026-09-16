@@ -51,15 +51,18 @@ class StyleHubRepository(private val dao: StyleHubDao) {
         if (hours.isNotEmpty()) {
             dao.insertOpeningHours(hours.map { it.copy(businessId = bizId) })
         }
-        // Notify admin
-        dao.insertNotification(
-            NotificationEntity(
-                userId = 3, // Admin
-                title = "New Business Listing Submitted",
-                message = "${business.name} has been submitted for verification and approval.",
-                type = "APPROVAL"
+        // Notify admin users
+        val admins = dao.getAllUsers().firstOrNull()?.filter { it.role == UserRole.ADMIN.name } ?: emptyList()
+        for (admin in admins) {
+            dao.insertNotification(
+                NotificationEntity(
+                    userId = admin.id,
+                    title = "New Business Listing Submitted",
+                    message = "${business.name} has been submitted for verification and approval.",
+                    type = "APPROVAL"
+                )
             )
-        )
+        }
         return bizId
     }
 

@@ -208,8 +208,8 @@ class AuthManager(private val dao: StyleHubDao) {
         var updatedRecoveryCodes = user.mfaRecoveryCodes
 
         // Check TOTP code
-        val secret = user.mfaSecret ?: "JBSWY3DPEHPK3PXP"
-        if (cleanCode.length == 6 && cleanCode.all { it.isDigit() }) {
+        val secret = user.mfaSecret
+        if (!secret.isNullOrBlank() && cleanCode.length == 6 && cleanCode.all { it.isDigit() }) {
             isVerified = TotpManager.verifyTotpCode(secret, cleanCode)
         }
 
@@ -527,8 +527,8 @@ class AuthManager(private val dao: StyleHubDao) {
         code: String,
         ipAddress: String = "102.165.34.12"
     ): Boolean {
-        val expected = pendingPhoneCodes[phone.trim()] ?: "123456"
-        if (code.trim() == expected || code.trim() == "123456") {
+        val expected = pendingPhoneCodes[phone.trim()] ?: return false
+        if (code.trim() == expected) {
             pendingPhoneCodes.remove(phone.trim())
             val user = dao.getUserById(userId)
             if (user != null) {
@@ -746,9 +746,8 @@ class AuthManager(private val dao: StyleHubDao) {
         // Authenticate user before sensitive account deactivation
         if (user.passwordHash.isNotBlank()) {
             val passMatches = CryptoUtils.verifyPassword(passwordOrVerification, user.salt, user.passwordHash)
-            val demoPassMatches = passwordOrVerification == "StyleHub2026!" || passwordOrVerification == "BarberPro2026!" || passwordOrVerification == "AdminSecure2026!"
-            if (!passMatches && !demoPassMatches) {
-                return Result.failure(Exception("We couldn't verify your identity. Please check your credentials and try again."))
+            if (!passMatches) {
+                return Result.failure(Exception("Incorrect password. Please verify your credentials and try again."))
             }
         }
 
@@ -794,9 +793,8 @@ class AuthManager(private val dao: StyleHubDao) {
 
         if (user.passwordHash.isNotBlank()) {
             val passMatches = CryptoUtils.verifyPassword(passwordOrVerification, user.salt, user.passwordHash)
-            val demoPassMatches = passwordOrVerification == "StyleHub2026!" || passwordOrVerification == "BarberPro2026!" || passwordOrVerification == "AdminSecure2026!"
-            if (!passMatches && !demoPassMatches) {
-                return Result.failure(Exception("We couldn't verify your identity. Please check your credentials and try again."))
+            if (!passMatches) {
+                return Result.failure(Exception("Incorrect password. Please verify your credentials and try again."))
             }
         }
 
@@ -845,9 +843,8 @@ class AuthManager(private val dao: StyleHubDao) {
         // Re-authenticate user before permanent deletion request
         if (user.passwordHash.isNotBlank()) {
             val passMatches = CryptoUtils.verifyPassword(passwordOrVerification, user.salt, user.passwordHash)
-            val demoPassMatches = passwordOrVerification == "StyleHub2026!" || passwordOrVerification == "BarberPro2026!" || passwordOrVerification == "AdminSecure2026!"
-            if (!passMatches && !demoPassMatches) {
-                return Result.failure(Exception("We couldn't verify your identity. Please check your credentials and try again."))
+            if (!passMatches) {
+                return Result.failure(Exception("Incorrect password. Please verify your credentials and try again."))
             }
         }
 

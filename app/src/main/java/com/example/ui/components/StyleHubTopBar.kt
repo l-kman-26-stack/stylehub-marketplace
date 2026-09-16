@@ -1,12 +1,12 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -26,19 +26,18 @@ import com.example.ui.theme.*
 @Composable
 fun StyleHubTopBar(
     currentRole: UserRole,
-    onRoleChange: (UserRole) -> Unit,
+    onRoleChange: ((UserRole) -> Unit)? = null,
     notificationCount: Int,
     onNotificationClick: () -> Unit,
     onBackClick: (() -> Unit)? = null,
     title: String = "StyleHub",
     subtitle: String? = "Find Your Style. Find Your Professional."
 ) {
-    var roleMenuExpanded by remember { mutableStateOf(false) }
-
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 3.dp,
-        shadowElevation = 2.dp,
+        tonalElevation = StyleHubDesignTokens.ElevationCard,
+        shadowElevation = StyleHubDesignTokens.ElevationLow,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -55,17 +54,17 @@ fun StyleHubTopBar(
                 // Left: Back button or Logo branding
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (onBackClick != null) {
                         IconButton(
                             onClick = onBackClick,
                             modifier = Modifier
-                                .size(40.dp)
+                                .defaultMinSize(minWidth = StyleHubDesignTokens.MinTouchTarget, minHeight = StyleHubDesignTokens.MinTouchTarget)
                                 .testTag("top_bar_back_button")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.ArrowBack,
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
@@ -73,8 +72,8 @@ fun StyleHubTopBar(
                     } else {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
+                                .size(38.dp)
+                                .clip(StyleHubDesignTokens.RadiusMedium)
                                 .background(GoldPrimary),
                             contentAlignment = Alignment.Center
                         ) {
@@ -88,150 +87,83 @@ fun StyleHubTopBar(
                     }
 
                     Column {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
                                 text = title,
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 19.sp
+                                    fontSize = 18.sp
                                 ),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             // Country indicator badge
                             Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = GoldContainer.copy(alpha = 0.3f),
-                                modifier = Modifier.padding(start = 2.dp)
+                                shape = StyleHubDesignTokens.RadiusSmall,
+                                color = GoldContainer.copy(alpha = 0.25f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
                             ) {
                                 Text(
                                     text = "🇿🇦 ZAR",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = GoldPrimary,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                 )
                             }
                         }
                         if (subtitle != null && onBackClick == null) {
                             Text(
                                 text = subtitle,
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
 
-                // Right: Role Switcher Pill & Notification Icon
+                // Right: Active Portal Badge & Notification Icon
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Role Switcher Dropdown Button
-                    Box {
+                    // Show role badge if non-customer (e.g. Owner or Admin portal mode)
+                    if (currentRole != UserRole.CUSTOMER) {
                         Surface(
-                            shape = RoundedCornerShape(20.dp),
+                            shape = StyleHubDesignTokens.RadiusFull,
                             color = when (currentRole) {
-                                UserRole.CUSTOMER -> MaterialTheme.colorScheme.primaryContainer
-                                UserRole.BUSINESS_OWNER -> Color(0xFF1E3A8A).copy(alpha = 0.2f)
-                                UserRole.ADMIN -> Color(0xFF7F1D1D).copy(alpha = 0.2f)
+                                UserRole.BUSINESS_OWNER -> StyleHubDesignTokens.StatusInfo.copy(alpha = 0.15f)
+                                UserRole.ADMIN -> StyleHubDesignTokens.StatusError.copy(alpha = 0.15f)
+                                else -> MaterialTheme.colorScheme.surfaceVariant
                             },
-                            border = null,
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (currentRole == UserRole.BUSINESS_OWNER) StyleHubDesignTokens.StatusInfo.copy(alpha = 0.4f)
+                                else StyleHubDesignTokens.StatusError.copy(alpha = 0.4f)
+                            ),
                             modifier = Modifier
-                                .clickable { roleMenuExpanded = true }
-                                .testTag("role_switcher_button")
+                                .clickable(enabled = onRoleChange != null) {
+                                    onRoleChange?.invoke(UserRole.CUSTOMER)
+                                }
+                                .testTag("top_bar_portal_badge")
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                val roleIcon = when (currentRole) {
-                                    UserRole.CUSTOMER -> Icons.Default.Person
-                                    UserRole.BUSINESS_OWNER -> Icons.Default.Storefront
-                                    UserRole.ADMIN -> Icons.Default.AdminPanelSettings
-                                }
-                                val roleColor = when (currentRole) {
-                                    UserRole.CUSTOMER -> GoldPrimary
-                                    UserRole.BUSINESS_OWNER -> Color(0xFF3B82F6)
-                                    UserRole.ADMIN -> Color(0xFFEF4444)
-                                }
                                 Icon(
-                                    imageVector = roleIcon,
+                                    imageVector = if (currentRole == UserRole.BUSINESS_OWNER) Icons.Default.Storefront else Icons.Default.AdminPanelSettings,
                                     contentDescription = null,
-                                    tint = roleColor,
+                                    tint = if (currentRole == UserRole.BUSINESS_OWNER) StyleHubDesignTokens.StatusInfo else StyleHubDesignTokens.StatusError,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
-                                    text = when (currentRole) {
-                                        UserRole.CUSTOMER -> "Customer"
-                                        UserRole.BUSINESS_OWNER -> "Owner"
-                                        UserRole.ADMIN -> "Admin"
-                                    },
+                                    text = if (currentRole == UserRole.BUSINESS_OWNER) "Partner Workspace" else "Admin Console",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = roleColor
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = null,
-                                    tint = roleColor,
-                                    modifier = Modifier.size(14.dp)
+                                    color = if (currentRole == UserRole.BUSINESS_OWNER) StyleHubDesignTokens.StatusInfo else StyleHubDesignTokens.StatusError
                                 )
                             }
-                        }
-
-                        DropdownMenu(
-                            expanded = roleMenuExpanded,
-                            onDismissRequest = { roleMenuExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text("Customer Mode", fontWeight = FontWeight.Bold)
-                                        Text("Discover, compare & book services", fontSize = 11.sp, color = Color.Gray)
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Person, contentDescription = null, tint = GoldPrimary)
-                                },
-                                onClick = {
-                                    onRoleChange(UserRole.CUSTOMER)
-                                    roleMenuExpanded = false
-                                }
-                            )
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text("Business Owner Mode", fontWeight = FontWeight.Bold)
-                                        Text("Manage listing, services & bookings", fontSize = 11.sp, color = Color.Gray)
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Storefront, contentDescription = null, tint = Color(0xFF3B82F6))
-                                },
-                                onClick = {
-                                    onRoleChange(UserRole.BUSINESS_OWNER)
-                                    roleMenuExpanded = false
-                                }
-                            )
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text("Administrator Mode", fontWeight = FontWeight.Bold)
-                                        Text("Verify, approve & monitor platform", fontSize = 11.sp, color = Color.Gray)
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = Color(0xFFEF4444))
-                                },
-                                onClick = {
-                                    onRoleChange(UserRole.ADMIN)
-                                    roleMenuExpanded = false
-                                }
-                            )
                         }
                     }
 
@@ -239,7 +171,7 @@ fun StyleHubTopBar(
                     IconButton(
                         onClick = onNotificationClick,
                         modifier = Modifier
-                            .size(38.dp)
+                            .defaultMinSize(minWidth = StyleHubDesignTokens.MinTouchTarget, minHeight = StyleHubDesignTokens.MinTouchTarget)
                             .testTag("notifications_button")
                     ) {
                         BadgedBox(

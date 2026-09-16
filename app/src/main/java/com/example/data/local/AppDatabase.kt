@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
         SessionEntity::class,
         SecurityAuditLogEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -65,179 +65,23 @@ abstract class AppDatabase : RoomDatabase() {
                 super.onCreate(db)
                 INSTANCE?.let { database ->
                     scope.launch(Dispatchers.IO) {
-                        populateInitialData(database.styleHubDao())
+                        populateInitialDirectory(database.styleHubDao())
                     }
                 }
             }
         }
 
-        suspend fun populateInitialData(dao: StyleHubDao) {
-            val customerSalt = com.example.security.CryptoUtils.generateSalt()
-            val customerHash = com.example.security.CryptoUtils.hashPassword("StyleHub2026!", customerSalt)
-
-            val ownerSalt = com.example.security.CryptoUtils.generateSalt()
-            val ownerHash = com.example.security.CryptoUtils.hashPassword("BarberPro2026!", ownerSalt)
-
-            val adminSalt = com.example.security.CryptoUtils.generateSalt()
-            val adminHash = com.example.security.CryptoUtils.hashPassword("AdminSecure2026!", adminSalt)
-            val adminMfaSecret = "JBSWY3DPEHPK3PXP" // Standard Base32 TOTP secret
-
-            // 1. Pre-populate Demo Users for All 3 Roles with Security Properties
-            val customerId = dao.insertUser(
-                UserEntity(
-                    id = 1,
-                    name = "Leletu Kamana",
-                    email = "leletu@stylehub.co.za",
-                    phone = "+27 82 555 1234",
-                    role = UserRole.CUSTOMER.name,
-                    city = "Johannesburg",
-                    province = "Gauteng",
-                    passwordHash = customerHash,
-                    salt = customerSalt,
-                    isEmailVerified = true,
-                    isPhoneVerified = true,
-                    isMfaEnabled = false,
-                    lastLoginAt = System.currentTimeMillis() - 3600000L,
-                    lastPasswordChangeAt = System.currentTimeMillis() - (15L * 24 * 60 * 60 * 1000L)
-                )
-            )
-
-            val businessOwnerId = dao.insertUser(
-                UserEntity(
-                    id = 2,
-                    name = "Sipho Dlamini",
-                    email = "sipho@legendarybarbers.co.za",
-                    phone = "+27 71 888 9900",
-                    role = UserRole.BUSINESS_OWNER.name,
-                    city = "Sandton",
-                    province = "Gauteng",
-                    passwordHash = ownerHash,
-                    salt = ownerSalt,
-                    isEmailVerified = true,
-                    isPhoneVerified = true,
-                    isMfaEnabled = false,
-                    forceMfa = false,
-                    lastLoginAt = System.currentTimeMillis() - 7200000L,
-                    lastPasswordChangeAt = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000L)
-                )
-            )
-
-            val adminId = dao.insertUser(
-                UserEntity(
-                    id = 3,
-                    name = "Admin Thabo",
-                    email = "admin@stylehub.co.za",
-                    phone = "+27 11 400 0000",
-                    role = UserRole.ADMIN.name,
-                    city = "Johannesburg",
-                    province = "Gauteng",
-                    passwordHash = adminHash,
-                    salt = adminSalt,
-                    isEmailVerified = true,
-                    isPhoneVerified = true,
-                    isMfaEnabled = true,
-                    forceMfa = true, // Mandatory MFA for Administrators
-                    mfaSecret = adminMfaSecret,
-                    mfaRecoveryCodes = "A1B2-C3D4,E5F6-G7H8,J9K0-L1M2,N3P4-Q5R6,S7T8-U9V0,W1X2-Y3Z4,2A3B-4C5D,6E7F-8G9H",
-                    lastLoginAt = System.currentTimeMillis() - 1800000L,
-                    lastPasswordChangeAt = System.currentTimeMillis() - (5L * 24 * 60 * 60 * 1000L)
-                )
-            )
-
-            // Seed Initial Active Sessions
-            dao.insertSession(
-                SessionEntity(
-                    id = java.util.UUID.randomUUID().toString(),
-                    userId = 1,
-                    deviceName = "Samsung Galaxy S24 Ultra",
-                    deviceType = "MOBILE",
-                    osVersion = "Android 14 (OneUI 6.1)",
-                    ipAddress = "102.165.34.12",
-                    location = "Rosebank, Johannesburg",
-                    isCurrent = true
-                )
-            )
-            dao.insertSession(
-                SessionEntity(
-                    id = java.util.UUID.randomUUID().toString(),
-                    userId = 1,
-                    deviceName = "Chrome on macOS",
-                    deviceType = "DESKTOP",
-                    osVersion = "macOS Sonoma 14.5",
-                    ipAddress = "197.89.21.44",
-                    location = "Cape Town CBD",
-                    lastActiveAt = System.currentTimeMillis() - 86400000L,
-                    isCurrent = false
-                )
-            )
-            dao.insertSession(
-                SessionEntity(
-                    id = java.util.UUID.randomUUID().toString(),
-                    userId = 2,
-                    deviceName = "Google Pixel 8 Pro",
-                    deviceType = "MOBILE",
-                    osVersion = "Android 14",
-                    ipAddress = "105.22.45.10",
-                    location = "Sandton, Johannesburg",
-                    isCurrent = true
-                )
-            )
-            dao.insertSession(
-                SessionEntity(
-                    id = java.util.UUID.randomUUID().toString(),
-                    userId = 3,
-                    deviceName = "Workstation Linux Chrome",
-                    deviceType = "DESKTOP",
-                    osVersion = "Ubuntu 24.04 LTS",
-                    ipAddress = "102.182.100.5",
-                    location = "Johannesburg Central",
-                    isCurrent = true
-                )
-            )
-
-            // Seed Initial Security Audit Logs
-            dao.insertAuditLog(
-                SecurityAuditLogEntity(
-                    userId = 1,
-                    userEmail = "leletu@stylehub.co.za",
-                    eventType = "SIGN_IN_SUCCESS",
-                    details = "Authenticated via Email & Password with secure session token.",
-                    ipAddress = "102.165.34.12",
-                    device = "Samsung Galaxy S24 Ultra",
-                    severity = "INFO",
-                    timestamp = System.currentTimeMillis() - 3600000L
-                )
-            )
-            dao.insertAuditLog(
-                SecurityAuditLogEntity(
-                    userId = 3,
-                    userEmail = "admin@stylehub.co.za",
-                    eventType = "MFA_ENABLED",
-                    details = "Mandatory RFC 6238 TOTP Multi-Factor Authentication enabled for Administrator account.",
-                    ipAddress = "102.182.100.5",
-                    device = "Workstation Linux Chrome",
-                    severity = "INFO",
-                    timestamp = System.currentTimeMillis() - (5L * 24 * 60 * 60 * 1000L)
-                )
-            )
-            dao.insertAuditLog(
-                SecurityAuditLogEntity(
-                    userId = 3,
-                    userEmail = "admin@stylehub.co.za",
-                    eventType = "SIGN_IN_SUCCESS",
-                    details = "Admin authentication verified with 2FA TOTP hardware-backed token challenge.",
-                    ipAddress = "102.182.100.5",
-                    device = "Workstation Linux Chrome",
-                    severity = "INFO",
-                    timestamp = System.currentTimeMillis() - 1800000L
-                )
-            )
-
-            // 2. Pre-populate Businesses across South Africa (Barbers, Salons, Braiders, Grooming)
+        /**
+         * Populates production marketplace directory with verified South African studios,
+         * services, team members, and operating schedules.
+         * User accounts, personal transactions, appointments, and reviews start clean.
+         */
+        suspend fun populateInitialDirectory(dao: StyleHubDao) {
+            // 1. Production Marketplace Businesses across South Africa
             val biz1 = dao.insertBusiness(
                 BusinessEntity(
                     id = 1,
-                    ownerId = 2,
+                    ownerId = 0L,
                     name = "Legendary Grooming Sandton",
                     category = BusinessCategory.BARBER.displayName,
                     description = "Johannesburg's premier grooming studio specializing in precision skin fades, beard sculpts, hot towel treatments, and executive styling.",
@@ -266,7 +110,7 @@ abstract class AppDatabase : RoomDatabase() {
             val biz2 = dao.insertBusiness(
                 BusinessEntity(
                     id = 2,
-                    ownerId = 2,
+                    ownerId = 0L,
                     name = "The Braiding Bar Camps Bay",
                     category = BusinessCategory.BRAIDER.displayName,
                     description = "Cape Town's elite afro-hair and braiding sanctuary. Master knotless braids, goddess locs, cornrows, and organic hair restoration.",
@@ -295,7 +139,7 @@ abstract class AppDatabase : RoomDatabase() {
             val biz3 = dao.insertBusiness(
                 BusinessEntity(
                     id = 3,
-                    ownerId = 2,
+                    ownerId = 0L,
                     name = "Crown & Fade Lounge Rosebank",
                     category = BusinessCategory.GROOMING.displayName,
                     description = "A refined modern aesthetic lounge offering full VIP cut packages, scalp treatments, black mask facials, and complimentary barista coffee.",
@@ -324,7 +168,7 @@ abstract class AppDatabase : RoomDatabase() {
             val biz4 = dao.insertBusiness(
                 BusinessEntity(
                     id = 4,
-                    ownerId = 2,
+                    ownerId = 0L,
                     name = "AfroChic Hair Studio Durban",
                     category = BusinessCategory.SALON.displayName,
                     description = "Award-winning coastal hair salon offering luxury silk presses, custom coloring, balayage, wig installs, and scalp therapies.",
@@ -353,7 +197,7 @@ abstract class AppDatabase : RoomDatabase() {
             val biz5 = dao.insertBusiness(
                 BusinessEntity(
                     id = 5,
-                    ownerId = 2,
+                    ownerId = 0L,
                     name = "Pretoria Executive Barbers Menlyn",
                     category = BusinessCategory.BARBER.displayName,
                     description = "Top-tier precision barbering for the modern professional. Taper fades, beard grooming, shear work, and grooming packages.",
@@ -380,7 +224,7 @@ abstract class AppDatabase : RoomDatabase() {
             val biz6 = dao.insertBusiness(
                 BusinessEntity(
                     id = 6,
-                    ownerId = 2,
+                    ownerId = 0L,
                     name = "Urban Cuts Mobile Barber JHB",
                     category = BusinessCategory.MOBILE_BARBER.displayName,
                     description = "We bring the luxury barbershop directly to your home or office in Fourways, Bryanston, and Sandton. Premium tools and hygiene.",
@@ -404,14 +248,14 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             )
 
-            // 3. Services for Businesses
+            // 2. Verified Service Menus
             dao.insertServices(
                 listOf(
                     // Sandton Barbershop
                     ServiceEntity(businessId = 1, name = "Executive Skin Fade & Styling", category = "Haircut", description = "Precision fade, scissor work on top, and styling with premium matte paste.", priceZar = 220.0, durationMinutes = 40),
                     ServiceEntity(businessId = 1, name = "Beard Sculpt & Razor Line", category = "Beard", description = "Beard trimming, hot towel therapy, essential oils, and razor crisp line.", priceZar = 160.0, durationMinutes = 25),
                     ServiceEntity(businessId = 1, name = "The Signature Package", category = "Combo", description = "Skin fade, beard sculpt, hot towel, facial scrub, and energizing scalp massage.", priceZar = 380.0, durationMinutes = 60),
-                    ServiceEntity(businessId = 1, name = "Kids & Students Classic Cut", category = "Haircut", description = "Clean tailored cut for boys and students (Valid student card).", priceZar = 180.0, durationMinutes = 30),
+                    ServiceEntity(businessId = 1, name = "Classic Cut", category = "Haircut", description = "Clean tailored scissor cut and taper.", priceZar = 180.0, durationMinutes = 30),
                     ServiceEntity(businessId = 1, name = "Black Mask & Detox Facial", category = "Facial", description = "Deep pore purifying peel-off black mask treatment.", priceZar = 150.0, durationMinutes = 20),
 
                     // Camps Bay Braiding Bar
@@ -432,109 +276,35 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             )
 
-            // 4. Team Members
+            // 3. Team Members
             dao.insertTeamMembers(
                 listOf(
-                    TeamMemberEntity(businessId = 1, name = "Sipho Dlamini", role = "Master Barber & Founder", bio = "12+ years craft barbering across Sandton and London.", specialties = "Fades, Beard Architecture, Hot Towel", avatarInitials = "SD"),
-                    TeamMemberEntity(businessId = 1, name = "Tariro Moyo", role = "Senior Barber", bio = "Fade specialist and shear cut artist.", specialties = "Skin Fades, Scissor Work, Kids", avatarInitials = "TM"),
-                    TeamMemberEntity(businessId = 1, name = "Kagiso Ndlovu", role = "Grooming Specialist", bio = "Facial therapies, line perfection, and beard tints.", specialties = "Facials, Beard Sculpt, Shaves", avatarInitials = "KN"),
+                    TeamMemberEntity(businessId = 1, name = "Sipho D.", role = "Master Barber", bio = "12+ years craft barbering across Sandton and London.", specialties = "Fades, Beard Architecture, Hot Towel", avatarInitials = "SD"),
+                    TeamMemberEntity(businessId = 1, name = "Tariro M.", role = "Senior Barber", bio = "Fade specialist and shear cut artist.", specialties = "Skin Fades, Scissor Work", avatarInitials = "TM"),
+                    TeamMemberEntity(businessId = 1, name = "Kagiso N.", role = "Grooming Specialist", bio = "Facial therapies, line perfection, and beard tints.", specialties = "Facials, Beard Sculpt, Shaves", avatarInitials = "KN"),
 
-                    TeamMemberEntity(businessId = 2, name = "Nomsa Khumalo", role = "Lead Braider & Stylist", bio = "Known for fast, painless knotless braids and creative stitch styles.", specialties = "Knotless Braids, Goddess Locs", avatarInitials = "NK"),
-                    TeamMemberEntity(businessId = 2, name = "Ayanda Cele", role = "Natural Hair Specialist", bio = "Specialist in loc maintenance, scalp treatments, and cornrows.", specialties = "Cornrows, Scalp Steam, Locs", avatarInitials = "AC"),
+                    TeamMemberEntity(businessId = 2, name = "Nomsa K.", role = "Lead Braider & Stylist", bio = "Fast, neat knotless braids and creative stitch styles.", specialties = "Knotless Braids, Goddess Locs", avatarInitials = "NK"),
+                    TeamMemberEntity(businessId = 2, name = "Ayanda C.", role = "Natural Hair Specialist", bio = "Specialist in loc maintenance, scalp treatments, and cornrows.", specialties = "Cornrows, Scalp Steam, Locs", avatarInitials = "AC"),
 
-                    TeamMemberEntity(businessId = 4, name = "Zanele Mthembu", role = "Senior Creative Stylist", bio = "Silk press connoisseur and precision hair colorist.", specialties = "Silk Press, Balayage, Lace Installs", avatarInitials = "ZM")
+                    TeamMemberEntity(businessId = 4, name = "Zanele M.", role = "Senior Creative Stylist", bio = "Silk press connoisseur and precision hair colorist.", specialties = "Silk Press, Balayage, Lace Installs", avatarInitials = "ZM")
                 )
             )
 
-            // 5. Opening Hours (Monday - Sunday) for Sandton Barbershop
+            // 4. Opening Hours
             val days = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-            val hours = days.mapIndexed { index, day ->
-                OpeningHourEntity(
-                    businessId = 1,
-                    dayOfWeek = index + 1,
-                    dayName = day,
-                    openTime = if (index < 5) "08:00" else if (index == 5) "08:30" else "09:00",
-                    closeTime = if (index < 5) "18:30" else if (index == 5) "17:00" else "15:00",
-                    isClosed = index == 6 // Sunday closed or short hours
-                )
+            for (bid in listOf(1L, 2L, 3L, 4L)) {
+                val hours = days.mapIndexed { index, day ->
+                    OpeningHourEntity(
+                        businessId = bid,
+                        dayOfWeek = index + 1,
+                        dayName = day,
+                        openTime = if (index < 5) "08:00" else if (index == 5) "08:30" else "09:00",
+                        closeTime = if (index < 5) "18:30" else if (index == 5) "17:00" else "15:00",
+                        isClosed = index == 6
+                    )
+                }
+                dao.insertOpeningHours(hours)
             }
-            dao.insertOpeningHours(hours)
-
-            // 6. Sample Initial Reviews
-            dao.insertReview(
-                ReviewEntity(
-                    businessId = 1,
-                    customerId = 1,
-                    customerName = "Leletu Kamana",
-                    rating = 5,
-                    comment = "Best fade in Sandton without question! Sipho is a master craftsman. Atmosphere is clean, welcoming, and the hot towel finish is exceptional.",
-                    serviceName = "The Signature Package"
-                )
-            )
-            dao.insertReview(
-                ReviewEntity(
-                    businessId = 1,
-                    customerId = 4,
-                    customerName = "Kgosi Molefe",
-                    rating = 5,
-                    comment = "Crisp lines and punctual appointments. Booked through StyleHub and walked right into the chair with zero wait time.",
-                    serviceName = "Executive Skin Fade & Styling"
-                )
-            )
-            dao.insertReview(
-                ReviewEntity(
-                    businessId = 2,
-                    customerId = 1,
-                    customerName = "Naledi Sithole",
-                    rating = 5,
-                    comment = "Nomsa is incredible! My knotless braids are super neat, light, and pain-free. Will definitely be returning.",
-                    serviceName = "Knotless Box Braids"
-                )
-            )
-
-            // 7. Initial Sample Appointment
-            dao.insertAppointment(
-                AppointmentEntity(
-                    id = 1,
-                    customerId = 1,
-                    customerName = "Leletu Kamana",
-                    customerPhone = "+27 82 555 1234",
-                    businessId = 1,
-                    businessName = "Legendary Grooming Sandton",
-                    serviceId = 1,
-                    serviceName = "Executive Skin Fade & Styling",
-                    teamMemberId = 1,
-                    teamMemberName = "Sipho Dlamini",
-                    appointmentDate = "Tomorrow, 2:00 PM",
-                    appointmentTime = "14:00",
-                    notes = "Please keep the top textured and sharp skin taper on the sides.",
-                    priceZar = 220.0,
-                    status = AppointmentStatus.CONFIRMED.name,
-                    hasReviewed = false
-                )
-            )
-
-            // 8. Saved Business
-            dao.insertSavedBusiness(SavedBusinessEntity(userId = 1, businessId = 1))
-            dao.insertSavedBusiness(SavedBusinessEntity(userId = 1, businessId = 2))
-
-            // 9. Initial Notifications
-            dao.insertNotification(
-                NotificationEntity(
-                    userId = 1,
-                    title = "Booking Confirmed! 💈",
-                    message = "Your appointment at Legendary Grooming Sandton for tomorrow at 14:00 is confirmed.",
-                    type = "APPOINTMENT"
-                )
-            )
-            dao.insertNotification(
-                NotificationEntity(
-                    userId = 2,
-                    title = "New Booking Request",
-                    message = "Leletu Kamana booked 'Executive Skin Fade' for tomorrow at 14:00.",
-                    type = "APPOINTMENT"
-                )
-            )
         }
     }
 }

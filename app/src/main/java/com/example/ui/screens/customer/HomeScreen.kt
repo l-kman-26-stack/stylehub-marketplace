@@ -908,7 +908,7 @@ fun HomeScreen(
                                 ),
                                 modifier = Modifier.testTag("cta_list_business_button")
                             ) {
-                                Text("List Your Business (Free MVP)", fontWeight = FontWeight.Bold)
+                                Text("List Your Business", fontWeight = FontWeight.Bold)
                             }
                         }
                     }

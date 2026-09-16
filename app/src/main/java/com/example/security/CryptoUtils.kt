@@ -13,13 +13,21 @@ object CryptoUtils {
 
     private val secureRandom = SecureRandom()
 
+    private fun encodeBase64(bytes: ByteArray): String {
+        return try {
+            Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } catch (e: Throwable) {
+            java.util.Base64.getEncoder().withoutPadding().encodeToString(bytes)
+        }
+    }
+
     /**
      * Generates a cryptographically secure random salt encoded in Base64.
      */
     fun generateSalt(length: Int = 16): String {
         val saltBytes = ByteArray(length)
         secureRandom.nextBytes(saltBytes)
-        return Base64.encodeToString(saltBytes, Base64.NO_WRAP)
+        return encodeBase64(saltBytes)
     }
 
     /**
@@ -32,7 +40,7 @@ object CryptoUtils {
             digest.reset()
             hash = digest.digest(hash)
         }
-        return Base64.encodeToString(hash, Base64.NO_WRAP)
+        return encodeBase64(hash)
     }
 
     /**

@@ -5,7 +5,12 @@ import com.example.data.local.entities.BusinessEntity
 import com.example.data.local.entities.ServiceEntity
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class ExampleUnitTest {
     @Test
     fun addition_isCorrect() {
@@ -190,14 +195,14 @@ class ExampleUnitTest {
 
     @Test
     fun passwordSecurity_hashingAndVerification() {
-        val salt = com.example.security.SecurityValidator.generateSalt()
+        val salt = com.example.security.CryptoUtils.generateSalt()
         assertTrue(salt.isNotEmpty())
         val password = "SecurePassword@2026"
-        val hash = com.example.security.SecurityValidator.hashPassword(password, salt)
-        val testHash = com.example.security.SecurityValidator.hashPassword(password, salt)
+        val hash = com.example.security.CryptoUtils.hashPassword(password, salt)
+        val testHash = com.example.security.CryptoUtils.hashPassword(password, salt)
         assertEquals(hash, testHash)
 
-        val wrongHash = com.example.security.SecurityValidator.hashPassword("WrongPassword123", salt)
+        val wrongHash = com.example.security.CryptoUtils.hashPassword("WrongPassword123", salt)
         assertNotEquals(hash, wrongHash)
     }
 }

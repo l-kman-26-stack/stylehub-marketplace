@@ -58,7 +58,6 @@ fun AccountManagementScreen(
     var showReactivateDialog by remember { mutableStateOf(false) }
     var showDeleteFlowDialog by remember { mutableStateOf(false) }
     var showCancelDeletionDialog by remember { mutableStateOf(false) }
-    var showPurgeTestDialog by remember { mutableStateOf(false) }
 
     // Input fields for password verification
     var deactivatePassword by remember { mutableStateOf("") }
@@ -183,12 +182,6 @@ fun AccountManagementScreen(
             // 5. Data Protection, POPIA & Retention Policy Info
             DataProtectionNoticeCard()
 
-            // 6. Evaluator & Testing Controls (for Demo / Verification purposes)
-            EvaluatorTestingCard(
-                status = currentStatus,
-                onSimulatePurge = { showPurgeTestDialog = true }
-            )
-
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
@@ -273,45 +266,6 @@ fun AccountManagementScreen(
             dismissButton = {
                 TextButton(onClick = { showCancelDeletionDialog = false }) {
                     Text("Close")
-                }
-            }
-        )
-    }
-
-    // --- DIALOG: Immediate Purge Simulation ---
-    if (showPurgeTestDialog) {
-        AlertDialog(
-            onDismissRequest = { showPurgeTestDialog = false },
-            icon = {
-                Icon(
-                    Icons.Default.DeleteForever,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(32.dp)
-                )
-            },
-            title = { Text("Simulate Expired Grace Period Purge") },
-            text = {
-                Text("This action simulates what happens when the 30-day grace period expires. The account status will be changed to DELETED, all active sessions revoked, and compliance audit logs filed. You will be signed out.")
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showPurgeTestDialog = false
-                        onPurgePermanently()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    ),
-                    modifier = Modifier.testTag("confirm_simulated_purge_btn")
-                ) {
-                    Text("Purge Account Now", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPurgeTestDialog = false }) {
-                    Text("Cancel")
                 }
             }
         )
@@ -824,49 +778,6 @@ private fun DataProtectionNoticeCard() {
 }
 
 // -----------------------------------------------------------------------------------------
-// SECTION 6: Evaluator Testing Card
-// -----------------------------------------------------------------------------------------
-@Composable
-private fun EvaluatorTestingCard(
-    status: AccountStatus,
-    onSimulatePurge: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Outlined.Build, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                Text("Evaluator Verification Tools", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            }
-            Text(
-                text = "For automated testing and review: Trigger immediate permanent purge to test the post-grace-period completion lifecycle without waiting 30 days.",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            OutlinedButton(
-                onClick = onSimulatePurge,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("evaluator_simulate_purge_btn"),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("Simulate Immediate Permanent Purge (Testing)", fontSize = 12.sp)
-            }
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------------------
 // DIALOG: Deactivation Confirmation Dialog
 // -----------------------------------------------------------------------------------------
 @Composable
@@ -917,12 +828,6 @@ private fun DeactivateConfirmDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("deactivate_password_field")
-                )
-
-                Text(
-                    text = "Demo password: StyleHub2026!",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
@@ -1010,12 +915,6 @@ private fun ReactivateConfirmDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("reactivate_password_field")
-                )
-
-                Text(
-                    text = "Demo password: StyleHub2026!",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
@@ -1286,12 +1185,6 @@ private fun DeleteAccountMultiStepFlowDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("step3_password_field")
-                            )
-
-                            Text(
-                                text = "Demo evaluator password: StyleHub2026!",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
 
                             Row(

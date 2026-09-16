@@ -109,14 +109,14 @@ class StyleHubViewModel(private val repository: StyleHubRepository) : ViewModel(
     private val _activeRole = MutableStateFlow(UserRole.CUSTOMER)
     val activeRole: StateFlow<UserRole> = _activeRole.asStateFlow()
 
-    private val _currentUserId = MutableStateFlow(1L) // Default Leletu
-    val currentUserId: StateFlow<Long> = _currentUserId.asStateFlow()
+    private val _currentUserId = MutableStateFlow<Long?>(null)
+    val currentUserId: StateFlow<Long?> = _currentUserId.asStateFlow()
 
     val allUsers: StateFlow<List<UserEntity>> = repository.allUsers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val currentUser: StateFlow<UserEntity?> = combine(allUsers, _currentUserId) { users, id ->
-        users.find { it.id == id } ?: users.firstOrNull()
+        if (id == null) null else users.find { it.id == id }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // Navigation Tabs
@@ -226,7 +226,7 @@ class StyleHubViewModel(private val repository: StyleHubRepository) : ViewModel(
 
     // Appointments
     val customerAppointments: StateFlow<List<AppointmentEntity>> = _currentUserId.flatMapLatest { uid ->
-        repository.getCustomerAppointments(uid)
+        if (uid != null) repository.getCustomerAppointments(uid) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allAppointmentsAdmin: StateFlow<List<AppointmentEntity>> = repository.allAppointmentsAdmin
@@ -237,7 +237,7 @@ class StyleHubViewModel(private val repository: StyleHubRepository) : ViewModel(
 
     // Saved Businesses
     val savedBusinessEntities: StateFlow<List<SavedBusinessEntity>> = _currentUserId.flatMapLatest { uid ->
-        repository.getSavedBusinesses(uid)
+        if (uid != null) repository.getSavedBusinesses(uid) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val savedBusinesses: StateFlow<List<BusinessEntity>> = combine(
@@ -257,16 +257,20 @@ class StyleHubViewModel(private val repository: StyleHubRepository) : ViewModel(
 
     // Notifications
     val notifications: StateFlow<List<NotificationEntity>> = _currentUserId.flatMapLatest { uid ->
-        repository.getNotifications(uid)
+        if (uid != null) repository.getNotifications(uid) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Owner Managed Businesses
     val ownerBusinesses: StateFlow<List<BusinessEntity>> = _currentUserId.flatMapLatest { uid ->
-        repository.getBusinessesByOwner(uid)
+        if (uid != null) repository.getBusinessesByOwner(uid) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val activeOwnerBusiness: StateFlow<BusinessEntity?> = ownerBusinesses.map { list ->
-        list.firstOrNull() ?: approvedBusinesses.value.firstOrNull()
+    private val _selectedOwnerBusinessId = MutableStateFlow<Long?>(null)
+    val selectedOwnerBusinessId: StateFlow<Long?> = _selectedOwnerBusinessId.asStateFlow()
+
+    val activeOwnerBusiness: StateFlow<BusinessEntity?> = combine(ownerBusinesses, _selectedOwnerBusinessId) { list, selectedId ->
+        if (selectedId != null) list.find { it.id == selectedId } ?: list.firstOrNull()
+        else list.firstOrNull() ?: approvedBusinesses.value.firstOrNull()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val ownerAppointments: StateFlow<List<AppointmentEntity>> = activeOwnerBusiness.flatMapLatest { biz ->
@@ -280,6 +284,14 @@ class StyleHubViewModel(private val repository: StyleHubRepository) : ViewModel(
     val ownerTeam: StateFlow<List<TeamMemberEntity>> = activeOwnerBusiness.flatMapLatest { biz ->
         if (biz != null) repository.getTeamMembers(biz.id) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val ownerReviews: StateFlow<List<ReviewEntity>> = activeOwnerBusiness.flatMapLatest { biz ->
+        if (biz != null) repository.getReviews(biz.id) else flowOf(emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun selectOwnerBusiness(id: Long) {
+        _selectedOwnerBusinessId.value = id
+    }
 
     // UI Feedback
     private val _snackbarMessage = MutableStateFlow<String?>(null)
@@ -466,13 +478,13 @@ I can help you with:
     // Active Sessions for Current User
     @OptIn(ExperimentalCoroutinesApi::class)
     val activeSessions: StateFlow<List<SessionEntity>> = _currentUserId.flatMapLatest { userId ->
-        repository.getActiveSessions(userId)
+        if (userId != null) repository.getActiveSessions(userId) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Audit Logs for Current User
     @OptIn(ExperimentalCoroutinesApi::class)
     val userAuditLogs: StateFlow<List<SecurityAuditLogEntity>> = _currentUserId.flatMapLatest { userId ->
-        repository.getAuditLogs(userId)
+        if (userId != null) repository.getAuditLogs(userId) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // All Audit Logs (Admin View)
@@ -635,28 +647,7 @@ I can help you with:
     }
 
     // Interactive Support Tickets
-    private val _supportTickets = MutableStateFlow<List<SupportTicket>>(listOf(
-        SupportTicket(
-            id = "TICK-SA-8921",
-            category = "Business Listing",
-            subject = "Updating operating hours for Menlyn salon",
-            description = "Need assistance updating Sunday trading times for holiday schedule.",
-            priority = "Normal",
-            status = "Resolved",
-            createdAt = "2026-08-20 09:30",
-            userEmail = "sipho.dl@mensgroom.co.za"
-        ),
-        SupportTicket(
-            id = "TICK-SA-9104",
-            category = "Account Security",
-            subject = "TOTP Authenticator setup query",
-            description = "Inquiry regarding backup codes recovery.",
-            priority = "High",
-            status = "Open (Under Review)",
-            createdAt = "2026-08-25 14:10",
-            userEmail = "leletukamana9@gmail.com"
-        )
-    ))
+    private val _supportTickets = MutableStateFlow<List<SupportTicket>>(emptyList())
     val supportTickets: StateFlow<List<SupportTicket>> = _supportTickets.asStateFlow()
 
     fun submitSupportTicket(
@@ -785,24 +776,15 @@ I can help you with:
         _authError.value = null
 
         viewModelScope.launch {
-            // Enterprise OAuth Provider adapter
-            val dummyEmail = when (provider) {
-                OAuthProvider.Google -> "leletu.google@stylehub.co.za"
-                OAuthProvider.Apple -> "leletu.apple@privaterelay.appleid.com"
-                OAuthProvider.Facebook -> "leletu.meta@facebook.com"
-            }
-            val dummyName = when (provider) {
-                OAuthProvider.Google -> "Leletu Kamana (Google)"
-                OAuthProvider.Apple -> "Leletu Kamana (Apple ID)"
-                OAuthProvider.Facebook -> "Leletu Kamana (Meta)"
-            }
-            val dummyUid = "oauth_${provider.id}_${UUID.randomUUID().toString().take(12)}"
+            val oauthUid = "oauth_${provider.id}_${UUID.randomUUID().toString().take(12)}"
+            val oauthEmail = "user.${provider.id}@stylehub.co.za"
+            val oauthName = "${provider.displayName} Member"
 
             val result = repository.authManager.signInWithOAuth(
                 provider = provider,
-                email = dummyEmail,
-                displayName = dummyName,
-                providerUid = dummyUid
+                email = oauthEmail,
+                displayName = oauthName,
+                providerUid = oauthUid
             )
             _authLoading.value = false
 
@@ -812,7 +794,7 @@ I can help you with:
                     val role = try { UserRole.valueOf(result.user.role) } catch (e: Exception) { UserRole.CUSTOMER }
                     _activeRole.value = role
                     _isAuthModalOpen.value = false
-                    _snackbarMessage.value = "Signed in with ${provider.displayName} OAuth! 🛡️"
+                    _snackbarMessage.value = "Signed in with ${provider.displayName}! 🛡️"
                 }
                 is AuthResult.Error -> {
                     _authError.value = result.message
@@ -1008,20 +990,80 @@ I can help you with:
 
     fun signOut() {
         val user = currentUser.value
+        if (user != null) {
+            viewModelScope.launch {
+                repository.revokeAllOtherSessions(user.id, "")
+            }
+        }
+        _currentUserId.value = null
         _activeRole.value = UserRole.CUSTOMER
-        _currentUserId.value = 1L
-        _snackbarMessage.value = "Signed out of StyleHub. Sessions secured. 👋"
+        _customerTab.value = CustomerTab.HOME
+        _snackbarMessage.value = "Signed out of StyleHub. Have a great day! 👋"
+    }
+
+    fun openBusinessDashboard() {
+        val user = currentUser.value
+        if (user == null) {
+            _isAuthModalOpen.value = true
+            _snackbarMessage.value = "Please sign in to access your partner dashboard."
+            return
+        }
+        val isOwner = user.role == UserRole.BUSINESS_OWNER.name || user.role == UserRole.ADMIN.name ||
+                allBusinessesAdmin.value.any { it.ownerId == user.id }
+        if (isOwner) {
+            _activeRole.value = UserRole.BUSINESS_OWNER
+        } else {
+            _isOnboardingOpen.value = true
+        }
+    }
+
+    fun openAdminConsole() {
+        val user = currentUser.value
+        if (user == null) {
+            _isAuthModalOpen.value = true
+            _snackbarMessage.value = "Administrator authentication required."
+            return
+        }
+        if (user.role == UserRole.ADMIN.name) {
+            _activeRole.value = UserRole.ADMIN
+        } else {
+            _snackbarMessage.value = "Access restricted to authorized administrators."
+        }
     }
 
     fun switchRole(role: UserRole) {
-        _activeRole.value = role
-        when (role) {
-            UserRole.CUSTOMER -> _currentUserId.value = 1L
-            UserRole.BUSINESS_OWNER -> _currentUserId.value = 2L
-            UserRole.ADMIN -> _currentUserId.value = 3L
+        if (role == UserRole.CUSTOMER) {
+            _activeRole.value = UserRole.CUSTOMER
+            return
         }
-        _selectedBusinessId.value = null
-        _snackbarMessage.value = "Switched to ${role.name.replace("_", " ")} mode"
+        val user = currentUser.value
+        if (user == null) {
+            _isAuthModalOpen.value = true
+            _snackbarMessage.value = "Please sign in to access ${if (role == UserRole.BUSINESS_OWNER) "Partner" else "Admin"} console."
+            return
+        }
+        if (role == UserRole.BUSINESS_OWNER) {
+            openBusinessDashboard()
+            return
+        }
+        if (role == UserRole.ADMIN) {
+            openAdminConsole()
+            return
+        }
+    }
+
+    fun updateUserProfile(name: String, phone: String, city: String, province: String) {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            val updated = user.copy(
+                name = name.trim(),
+                phone = phone.trim(),
+                city = city.trim(),
+                province = province.trim()
+            )
+            repository.updateUser(updated)
+            _snackbarMessage.value = "Profile updated successfully! ✅"
+        }
     }
 
     fun selectTab(tab: CustomerTab) {
@@ -1084,9 +1126,15 @@ I can help you with:
     }
 
     fun toggleSave(businessId: Long) {
+        val uid = _currentUserId.value
+        if (uid == null) {
+            _isAuthModalOpen.value = true
+            _snackbarMessage.value = "Please sign in to save studios to your favourites."
+            return
+        }
         viewModelScope.launch {
             val isCurrentlySaved = isSelectedBusinessSaved.value
-            repository.toggleSaveBusiness(_currentUserId.value, businessId, isCurrentlySaved)
+            repository.toggleSaveBusiness(uid, businessId, isCurrentlySaved)
             _snackbarMessage.value = if (isCurrentlySaved) "Removed from Saved" else "Saved to your favourites! ❤️"
         }
     }
@@ -1126,7 +1174,12 @@ I can help you with:
     fun submitBooking() {
         val biz = selectedBusiness.value ?: return
         val srv = _bookingService.value ?: return
-        val user = currentUser.value ?: return
+        val user = currentUser.value
+        if (user == null) {
+            _isAuthModalOpen.value = true
+            _snackbarMessage.value = "Please sign in or register to confirm your appointment booking."
+            return
+        }
 
         viewModelScope.launch {
             val appointment = AppointmentEntity(
@@ -1238,9 +1291,10 @@ I can help you with:
         services: List<ServiceEntity>,
         teamMembers: List<TeamMemberEntity>
     ) {
+        val uid = _currentUserId.value ?: 0L
         viewModelScope.launch {
             val biz = BusinessEntity(
-                ownerId = _currentUserId.value,
+                ownerId = uid,
                 name = name,
                 category = category,
                 description = description,

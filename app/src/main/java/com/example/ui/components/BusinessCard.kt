@@ -51,11 +51,12 @@ fun BusinessCard(
     }
 
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = StyleHubDesignTokens.RadiusCard,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = StyleHubDesignTokens.ElevationCard),
         modifier = modifier
             .fillMaxWidth()
             .clickable { onClick() }
@@ -272,12 +273,15 @@ fun BusinessCard(
                         onClick = {
                             openWhatsApp(context, business.whatsapp, "Hi! I found ${business.name} on StyleHub and would like to enquire.")
                         },
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        shape = StyleHubDesignTokens.RadiusMedium,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = WhatsAppGreen
                         ),
-                        modifier = Modifier.testTag("whatsapp_button_${business.id}")
+                        border = androidx.compose.foundation.BorderStroke(1.dp, WhatsAppGreen.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 42.dp)
+                            .testTag("whatsapp_button_${business.id}")
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Chat,
@@ -285,20 +289,22 @@ fun BusinessCard(
                             modifier = Modifier.size(16.dp),
                             tint = WhatsAppGreen
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text("WhatsApp", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
 
                     // Book Appointment CTA
                     Button(
                         onClick = onBookClick,
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        shape = StyleHubDesignTokens.RadiusMedium,
+                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
-                        modifier = Modifier.testTag("book_button_${business.id}")
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 42.dp)
+                            .testTag("book_button_${business.id}")
                     ) {
                         Text(
                             text = "Book Now",

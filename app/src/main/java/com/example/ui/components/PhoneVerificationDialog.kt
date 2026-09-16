@@ -100,15 +100,14 @@ fun PhoneVerificationDialog(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = GoldPrimary.copy(alpha = 0.15f),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            "📲 Demo SMS Code: $dispatchedCode (or use 123456)",
+                            "A 6-digit verification code has been dispatched via SMS. Enter it below to verify your phone number.",
                             modifier = Modifier.padding(10.dp),
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = CharcoalDark
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
